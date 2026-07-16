@@ -2,7 +2,7 @@
 /datasets_public
 /vllm-0.10.1
 
-__pycache__/
+**/__pycache__/
 *.pyc
 *.pyo
 *.pyd
