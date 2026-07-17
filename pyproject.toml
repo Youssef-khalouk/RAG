@@ -10,7 +10,8 @@ dependencies = [
     "pydantic",
     "flake8",
     "mypy",
-    "rank_bm25"
+    "rank_bm25",
+    "colorama"
 ]
 
 [build-system]
