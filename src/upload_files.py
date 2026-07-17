@@ -1,6 +1,7 @@
 from pathlib import Path
 # from typing import Any
 import sys
+import re
 
 
 class UploadDir:
@@ -48,12 +49,15 @@ class UploadDir:
             document = {}
             document["path"] = path
             document["chunk"] = chunk
-            document["text"] = text
 
             end_index = index + self._chunk_size
             end_index = self._cut_chunk(text, index, end_index, path)
-
-            document["text"] = text[index:end_index]
+            p = re.split(r"[\\/_.]", path)
+            p = " ".join(p)
+            new_path = Path(path)
+            # print(p)
+            # print(new_path.stem)
+            document["text"] = p + " " + new_path.stem + "\n" + text[index:end_index]
             document["index"] = (index, end_index - 1)
             self.documents.append(document)
 
