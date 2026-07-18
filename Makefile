@@ -1,4 +1,4 @@
-.PHONY: help install run debug clean lint lint-strict
+.PHONY: help install run debug clean lint lint-strict moulinette moulinette2
 
 export HF_HOME=/tmp/hf_home
 export UV_CACHE_DIR=/tmp/uv_cache_dir
@@ -28,6 +28,11 @@ run:
 
 runs:
 	uv run python -m  src
+
+moulinette:
+	./moulinette/moulinette-ubuntu evaluate_student_search_results data/output.json data/datasets_public/public/AnsweredQuestions/dataset_docs_public.json --k 10 --max_context_length 2000
+moulinette2:	
+	./moulinette/moulinette-ubuntu evaluate_student_search_results data/output.json data/datasets_public/public/AnsweredQuestions/dataset_code_public.json --k 10 --max_context_length 2000
 
 debug:
 	uv run python -m pdb src

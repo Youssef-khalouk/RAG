@@ -11,7 +11,8 @@ dependencies = [
     "flake8",
     "mypy",
     "rank_bm25",
-    "colorama"
+    "colorama",
+    "langchain_text_splitters"
 ]
 
 [build-system]

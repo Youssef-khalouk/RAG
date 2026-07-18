@@ -3,6 +3,7 @@ from .bm25searcher import BM25Searcher
 import json
 from colorama import Fore, Style
 
+
 STOP_WORDS = {
     "a", "about", "above", "after", "again", "against", "all", "am",
     "an", "and", "any", "are", "aren't", "as", "at",
@@ -58,79 +59,58 @@ STOP_WORDS = {
 }
 
 json_data = []
-
-path = "datasets_public/public/UnansweredQuestions/dataset_docs_public.json"
+path = "data/datasets_public/public/UnansweredQuestions/dataset_docs_public.json"
 with open(path, "r", encoding="utf-8") as file:
     json_data = json.load(file)
 
 
 if __name__ == "__main__":
 
-    updir = UploadDir("data")
+    updir = UploadDir("data/raw/vllm-0.10.1")
     updir.set_chunk_size(2000)
     updir.upload()
 
     searcher = BM25Searcher()
-    searcher.set_documents(updir.get_documents())
+    searcher.set_text_documents(updir.get_text_documents())
+    searcher.set_code_documents(updir.get_code_documents())
     searcher.set_top_k(10)
 
     array = []
-
-
     for q in json_data["rag_questions"]:
         dic = {}
+        ar = []
         dic["question_id"] = q["question_id"]
         dic["question"] = q["question"]
-        ar = []
-        question = q["question"]
-        documents = searcher.query(question)
+        documents = searcher.query(q["question"])
         for d in documents:
+            # print(d["path"])
             dd = {}
             dd["file_path"] = d["path"].replace("\\", "/")
             dd["first_character_index"] = d["index"][0]
             dd["last_character_index"] = d["index"][1]
             ar.append(dd)
-
-            # print(f"{Fore.YELLOW}\n\nQuestion: {question}{Style.RESET_ALL}")
-            # print(f"{Fore.BLUE}path: {d['path']} [chunk: {d['chunk']}]{Style.RESET_ALL}")
-            # text = d["text"]
-            # for q in question.split(" "):
-            #     if q not in STOP_WORDS:
-            #         text = text.replace(q, f"{Fore.YELLOW}{q}{Fore.WHITE}") 
-
-            # print(f"{Fore.WHITE}\ntext: {text}{Style.RESET_ALL}")
         dic["retrieved_sources"] = ar
         array.append(dic)
-        # break
-
     my_dict = {}
     my_dict["search_results"] = array
     my_dict["k"] = 10
+    with open("data/output.json", "w") as file:
+        json.dump(my_dict, file, indent=4)
+        print("json saved seccessfuly.")
 
-    with open("output.json", "w") as file:
-        json.dump(my_dict, file, indent= 4)
-
-
-# a = {
-
-#     "search_results": [
-#         {
-#             "question_id": "q1",
-#             "question": "How to configure OpenAI server?",
-#             "retrieved_sources":
-#             [
-#                 {
-#                     "file_path": "data/raw/vllm-0.10.1/docs/serving/openai_compatible_server.md",
-#                     "first_character_index": 9867,
-#                     "last_character_index": 10100
-#                 },
-#                 {
-#                     "file_path": "data/raw/vllm-0.10.1/vllm/entrypoints/openai/api_server.py",
-#                     "first_character_index": 267,
-#                     "last_character_index": 400
-#                 }
-#             ]
-#         }
-#     ],
-#     "k": 10
-# }
+    # print output in terminal
+    for q in json_data["rag_questions"]:
+        question = q["question"]
+        documents = searcher.query(question)
+        for d in documents:
+            if d["path"].endswith(".py"):
+                print(d["path"])
+            if d["path"].endswith(".sh"):
+                print(f"{Fore.YELLOW}\n\nQuestion: {question}{Style.RESET_ALL}")
+                print(f"{Fore.BLUE}path: {d['path']} [chunk: {d['chunk']}]{Style.RESET_ALL}")
+                text = d["text"]
+                for q in question.split(" "):
+                    if q not in STOP_WORDS:
+                        text = text.replace(q, f"{Fore.YELLOW}{q}{Fore.WHITE}")
+                print(f"{Fore.WHITE}\ntext: {text}{Style.RESET_ALL}")
+        # break
