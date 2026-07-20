@@ -31,7 +31,7 @@ class BM25Searcher:
         self.chunks = []
         for d in documents:
             self.chunks.append(d["text"])
-        self._tokenized_text_docs = [chunk.split() for chunk in self.chunks]
+        self._tokenized_text_docs = [self._preprocess(chunk).split() for chunk in self.chunks]
         self.bm25_text = BM25Okapi(self._tokenized_text_docs)
 
     def set_code_documents(self, documents: list[dict]) -> None:
@@ -46,7 +46,7 @@ class BM25Searcher:
         if self.text_documents is None or self.code_documents is None:
             print("there is no documents yet to call query!")
             sys.exit(1)
-        scores = self.bm25_text.get_scores(query.split())
+        scores = self.bm25_text.get_scores(self._preprocess(query).split())
         # Get indexes of highest scores
         top_indexes = sorted(
             range(len(scores)),

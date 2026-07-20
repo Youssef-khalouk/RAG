@@ -59,7 +59,8 @@ STOP_WORDS = {
 }
 
 json_data = []
-path = "data/datasets_public/public/UnansweredQuestions/dataset_docs_public.json"
+path = "data/datasets_private/private/UnansweredQuestions/dataset_docs_private.json"
+# path = "data/datasets_public/public/UnansweredQuestions/dataset_docs_public.json"
 with open(path, "r", encoding="utf-8") as file:
     json_data = json.load(file)
 

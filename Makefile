@@ -26,13 +26,20 @@ install:
 run:
 	uv run python -m  src
 
-runs:
+run2:
 	uv run python -m  src
 
 moulinette:
 	./moulinette/moulinette-ubuntu evaluate_student_search_results data/output.json data/datasets_public/public/AnsweredQuestions/dataset_docs_public.json --k 10 --max_context_length 2000
-moulinette2:	
+moulinette2:
 	./moulinette/moulinette-ubuntu evaluate_student_search_results data/output.json data/datasets_public/public/AnsweredQuestions/dataset_code_public.json --k 10 --max_context_length 2000
+
+moulinette_p:
+	./moulinette/moulinette-ubuntu evaluate_student_search_results data/output.json data/datasets_private/private/AnsweredQuestions/dataset_docs_private.json --k 10 --max_context_length 2000
+
+all: run moulinette
+all2: run2 moulinette2
+all3: run moulinette_p
 
 debug:
 	uv run python -m pdb src
