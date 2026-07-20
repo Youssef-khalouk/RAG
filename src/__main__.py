@@ -81,7 +81,7 @@ if __name__ == "__main__":
         ar = []
         dic["question_id"] = q["question_id"]
         dic["question"] = q["question"]
-        documents = searcher.query(q["question"])
+        documents = searcher.query(q["question"], "text")
         for d in documents:
             # print(d["path"])
             dd = {}
@@ -101,11 +101,10 @@ if __name__ == "__main__":
     # print output in terminal
     for q in json_data["rag_questions"]:
         question = q["question"]
-        documents = searcher.query(question)
         for d in documents:
             if d["path"].endswith(".py"):
                 print(d["path"])
-            if d["path"].endswith(".sh"):
+            if d["path"].endswith("compilation.py"):
                 print(f"{Fore.YELLOW}\n\nQuestion: {question}{Style.RESET_ALL}")
                 print(f"{Fore.BLUE}path: {d['path']} [chunk: {d['chunk']}]{Style.RESET_ALL}")
                 text = d["text"]

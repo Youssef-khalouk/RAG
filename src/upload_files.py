@@ -10,7 +10,8 @@ class UploadDir:
         self.text_documents: list[dict] = []
         self.code_documents: list[dict] = []
         self._chunk_size = 2000
-        self._chunk_overlap = 150
+        self._text_chunk_overlap = 0
+        self._code_chunk_overlap = 150
 
     def set_chunk_size(self, size: int) -> None:
         if size <= 0:
@@ -24,88 +25,65 @@ class UploadDir:
     def get_code_documents(self) -> list[dict]:
         return self.code_documents
 
-    def _cut_chunk(self, text: str, s_index: int,
-                   e_index: int, path: str) -> int:
-        if e_index >= len(text):
-            return len(text) - 1
-
-        def cut_in(char: str, index: int) -> int | None:
-            ln = len(char)
-            index -= ln
-            middle = s_index + (e_index - s_index) // 2
-            # middle = s_index
-            while index > middle:
-                if text[index:index + ln] == char:
-                    return index
-                index -= 1
-            return None
-
-        chars = ["\n", " "]
-        if path.endswith(".txt") or path.endswith(".md") or path.endswith("LICENSE"):
-            chars.insert(0, ".")
-            chars.insert(0, ".\n")
-            if path.endswith(".md"):
-                chars.insert(0, "#")
-                chars.insert(0, "##")
-                chars.insert(0, "###")
-        if path.endswith(".py"):
-            chars.insert(0, "def ")
-            chars.insert(0, "class ")
-        for char in chars:
-            index = cut_in(char, e_index)
-            if index is not None:
-                return index
-        return s_index + self._chunk_size
-
-    def _save_python_file(self, path: str, text: str) -> None:
+    def _chunk_code_file(self, path: str, text: str) -> None:
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=self._chunk_size,
-            chunk_overlap=self._chunk_overlap,
+            chunk_overlap=self._code_chunk_overlap,
             add_start_index=True
         )
         docs = splitter.create_documents([text])
+        # chunks = splitter.split_text(text)
+
+        new_path = Path(path)
+        path_info = f"{path} {new_path.name} {new_path.stem}"
         for i, doc in enumerate(docs):
-            document = {}
-            document["path"] = path
-            document["chunk"] = i
-            new_path = Path(path)
-            # adding path content to the shunks
-            p = path + " " + new_path.name + " " + new_path.stem
-            document["text"] = p + "\n" + doc.page_content
             start = doc.metadata["start_index"]
             end = start + len(doc.page_content)
-            document["index"] = (start, end)
-            self.code_documents.append(document)
+            self.code_documents.append({
+                "path": path,
+                "chunk": i,
+                "text": f"{path_info}\n{doc.page_content}",
+                "index": (start, end)
+            })
+
+    def _chunk_text_file(self, path: str, text: str) -> None:
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=self._chunk_size,
+            chunk_overlap=self._text_chunk_overlap,
+            separators=[
+                "\n\n",
+                "\n",
+                " ",
+                ""
+            ],
+            add_start_index=True
+        )
+        docs = splitter.create_documents([text])
+
+        new_path = Path(path)
+        path_info = (
+            f"{new_path.name}\n"
+            f" {new_path.name}\n"
+            f"{new_path.stem}\n"
+            f" {new_path.stem}\n"
+            f"{new_path.stem.replace("_", " ")}\n"
+            f" {new_path.stem.replace("_", " ")}\n"
+        )
+        for i, doc in enumerate(docs):
+            start = doc.metadata["start_index"]
+            end = start + len(doc.page_content)
+            self.text_documents.append({
+                "path": path,
+                "chunk": i,
+                "text": f"{path_info}\n{doc.page_content}",
+                "index": (start, end)
+            })
 
     def _save_file_content(self, path: str, text: str) -> None:
-        if (
-                path.endswith(".py") or
-                path.endswith(".sh") or
-                path.endswith(".cuh") or
-                path.endswith(".cu") or
-                path.endswith(".hpp") or
-                path.endswith(".yml") or
-                path.endswith("CMakeLists.txt")
-                ):
-            self._save_python_file(path, text)
-            return
-        index = 0
-        chunk = 1
-        while (index != len(text)-1):
-            document = {}
-            document["path"] = path
-            document["chunk"] = chunk
-            end_index = index + self._chunk_size
-            end_index = self._cut_chunk(text, index, end_index, path)
-            new_path = Path(path)
-            # adding path content to the shunks
-            p = path + " " + new_path.name + " " + new_path.stem
-            document["text"] = p + "\n" + text[index:end_index]
-            document["index"] = (index, end_index - 1)
-            self.text_documents.append(document)
-
-            index = end_index
-            chunk += 1
+        if path.endswith(".py"):
+            self._chunk_code_file(path, text)
+        elif path.endswith(".md") or path.endswith(".txt"):
+            self._chunk_text_file(path, text)
 
     def upload(self) -> None:
         if self.directory == "":
@@ -116,7 +94,7 @@ class UploadDir:
             for item in directory.iterdir():
                 if item.is_dir():
                     get_dir_content(str(item))
-                else:
+                elif (item.suffix in [".py", ".md", ".txt"]):
                     self.files_path.append(str(item))
 
         get_dir_content(self.directory)
@@ -125,5 +103,6 @@ class UploadDir:
             with open(file_path, "r", encoding="utf-8") as file:
                 try:
                     self._save_file_content(file_path, file.read())
-                except Exception:
+                except Exception as error:
+                    print(error)
                     continue
