@@ -2,7 +2,8 @@ from .upload_files import UploadDir
 from .bm25searcher import BM25Searcher
 import json
 from colorama import Fore, Style
-
+from pathlib import Path
+import argparse
 
 STOP_WORDS = {
     "a", "about", "above", "after", "again", "against", "all", "am",
@@ -58,23 +59,79 @@ STOP_WORDS = {
     "yourself", "yourselves"
 }
 
-json_data = []
-path = "data/datasets_private/private/UnansweredQuestions/dataset_docs_private.json"
+# path = "data/datasets_private/private/UnansweredQuestions/dataset_docs_private.json"
 # path = "data/datasets_public/public/UnansweredQuestions/dataset_docs_public.json"
-with open(path, "r", encoding="utf-8") as file:
-    json_data = json.load(file)
+# path = "data/datasets_private/private/UnansweredQuestions/dataset_code_private.json"
+
+# with open(path, "r", encoding="utf-8") as file:
+#     json_data = json.load(file)
+
+
+def print_data(data, documents):
+    for q in data["rag_questions"]:
+        question = q["question"]
+        for d in documents:
+            print(f"{Fore.YELLOW}\n\nQuestion: {question}{Style.RESET_ALL}")
+            print(f"{Fore.BLUE}path: {d['path']} [chunk: {d['chunk']}]{Style.RESET_ALL}")
+            text = d["text"]
+            for q in question.split(" "):
+                if q not in STOP_WORDS:
+                    text = text.replace(q, f"{Fore.YELLOW}{q}{Fore.WHITE}")
+            print(f"{Fore.WHITE}\ntext: {text}{Style.RESET_ALL}")
+        # break
+
+
+def save_data(data):
+    pass
+
+
+def positive_int(value: str) -> int:
+    try:
+        value = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"'{value}' is not a valid integer"
+        )
+
+    if value <= 0:
+        raise argparse.ArgumentTypeError(
+            "must be a positive integer"
+        )
+
+    return value
 
 
 if __name__ == "__main__":
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset_path", default="")
+    parser.add_argument("--max_chunk_size", default=2000, type=positive_int)
+    parser.add_argument("--k", default=10, type=positive_int)
+    parser.add_argument("--save_directory", default="data/output.json")
+    args = parser.parse_args()
+
+    if args.dataset_path == "":
+        print("place set dataset path before runing the programe.")
+        exit(1)
+
+    json_data = []
+    with open(args.dataset_path, "r", encoding="utf-8") as file:
+        json_data = json.load(file)
+
     updir = UploadDir("data/raw/vllm-0.10.1")
-    updir.set_chunk_size(2000)
+    updir.set_chunk_size(args.max_chunk_size)
     updir.upload()
 
     searcher = BM25Searcher()
+    searcher.set_top_k(args.k)
     searcher.set_text_documents(updir.get_text_documents())
     searcher.set_code_documents(updir.get_code_documents())
     searcher.set_top_k(10)
+
+    path = Path(args.dataset_path)
+    type = "doc"
+    if "code" in path.name:
+        type = "code"
 
     array = []
     for q in json_data["rag_questions"]:
@@ -82,9 +139,8 @@ if __name__ == "__main__":
         ar = []
         dic["question_id"] = q["question_id"]
         dic["question"] = q["question"]
-        documents = searcher.query(q["question"], "text")
+        documents = searcher.query(q["question"], type)
         for d in documents:
-            # print(d["path"])
             dd = {}
             dd["file_path"] = d["path"].replace("\\", "/")
             dd["first_character_index"] = d["index"][0]
@@ -99,18 +155,4 @@ if __name__ == "__main__":
         json.dump(my_dict, file, indent=4)
         print("json saved seccessfuly.")
 
-    # print output in terminal
-    for q in json_data["rag_questions"]:
-        question = q["question"]
-        for d in documents:
-            if d["path"].endswith(".py"):
-                print(d["path"])
-            if d["path"].endswith("compilation.py"):
-                print(f"{Fore.YELLOW}\n\nQuestion: {question}{Style.RESET_ALL}")
-                print(f"{Fore.BLUE}path: {d['path']} [chunk: {d['chunk']}]{Style.RESET_ALL}")
-                text = d["text"]
-                for q in question.split(" "):
-                    if q not in STOP_WORDS:
-                        text = text.replace(q, f"{Fore.YELLOW}{q}{Fore.WHITE}")
-                print(f"{Fore.WHITE}\ntext: {text}{Style.RESET_ALL}")
-        # break
+    # print_data(json_data, documents)

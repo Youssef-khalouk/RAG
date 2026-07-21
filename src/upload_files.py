@@ -10,7 +10,7 @@ class UploadDir:
         self.text_documents: list[dict] = []
         self.code_documents: list[dict] = []
         self._chunk_size = 2000
-        self._text_chunk_overlap = 300
+        self._text_chunk_overlap = 0
         self._code_chunk_overlap = 0
 
     def set_chunk_size(self, size: int) -> None:
@@ -49,7 +49,7 @@ class UploadDir:
     def _chunk_text_file(self, path: str, text: str) -> None:
         separators = [".\n", "\n", " ", ""]
         if path.endswith(".md"):
-            separators = ["\n# ", "\n## ", "\n### ", ".\n", "\n", " ", ""]
+            separators = ["\n# ", ".\n", "\n", " ", ""]
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=self._chunk_size,
             chunk_overlap=self._text_chunk_overlap,
@@ -57,16 +57,7 @@ class UploadDir:
             add_start_index=True
         )
         docs = splitter.create_documents([text])
-
-        new_path = Path(path)
-        path_info = (
-            ""
-            f"{path.replace("\\", " ").replace("/", " ")}\n"
-            f"{new_path.stem}\n"
-            f" {new_path.stem}\n"
-            f" {new_path.stem.replace("_", " ").replace("-", " ")}\n"
-        )
-        # print(path_info)
+        path_info = f"Path: {path.replace('/', ' ')}\n"
         for i, doc in enumerate(docs):
             start = doc.metadata["start_index"]
             end = start + len(doc.page_content)
@@ -93,11 +84,7 @@ class UploadDir:
                 if item.is_dir():
                     get_dir_content(str(item))
                 elif (item.suffix in [".py", ".md", ".txt"]):
-                    # if not str(item).endswith("CMakeLists.txt"):
                     self.files_path.append(str(item))
-                    # else:
-                    #     print(str(item))
-
         get_dir_content(self.directory)
 
         for file_path in self.files_path:
