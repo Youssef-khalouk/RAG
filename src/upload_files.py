@@ -1,6 +1,7 @@
 from pathlib import Path
 import sys
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter, Language
+from chonkie import CodeChunker
 
 
 class UploadDir:
@@ -10,8 +11,28 @@ class UploadDir:
         self.text_documents: list[dict] = []
         self.code_documents: list[dict] = []
         self._chunk_size = 2000
-        self._text_chunk_overlap = 0
+        self._doc_chunk_overlap = 0
         self._code_chunk_overlap = 0
+
+        # this two splitters for spliting docs
+        self.splitter_txt = RecursiveCharacterTextSplitter(
+            chunk_size=self._chunk_size,
+            chunk_overlap=self._doc_chunk_overlap,
+            separators=[".\n", "\n", " ", ""],
+            add_start_index=True
+        )
+        self.splitter_md = RecursiveCharacterTextSplitter(
+            chunk_size=self._chunk_size,
+            chunk_overlap=self._doc_chunk_overlap,
+            separators=["\n# ", ".\n", "\n", " ", ""],
+            add_start_index=True
+        )
+        self.splitter_code = RecursiveCharacterTextSplitter.from_language(
+            language=Language.PYTHON,
+            chunk_size=self._chunk_size,
+            chunk_overlap=self._code_chunk_overlap,
+            add_start_index=True,
+        )
 
     def set_chunk_size(self, size: int) -> None:
         if size <= 0:
@@ -25,54 +46,30 @@ class UploadDir:
     def get_code_documents(self) -> list[dict]:
         return self.code_documents
 
-    def _chunk_code_file(self, path: str, text: str) -> None:
-        splitter = RecursiveCharacterTextSplitter(
-            chunk_size=self._chunk_size,
-            chunk_overlap=self._code_chunk_overlap,
-            add_start_index=True
-        )
-        docs = splitter.create_documents([text])
-        # chunks = splitter.split_text(text)
-
-        new_path = Path(path)
-        path_info = f"{path} {new_path.name} {new_path.stem}"
-        for i, doc in enumerate(docs):
-            start = doc.metadata["start_index"]
-            end = start + len(doc.page_content)
-            self.code_documents.append({
-                "path": path,
-                "chunk": i,
-                "text": f"{path_info}\n{doc.page_content}",
-                "index": (start, end)
-            })
-
-    def _chunk_text_file(self, path: str, text: str) -> None:
-        separators = [".\n", "\n", " ", ""]
+    def _chunk_file_and_save(self, path: str, text: str) -> None:
         if path.endswith(".md"):
-            separators = ["\n# ", ".\n", "\n", " ", ""]
-        splitter = RecursiveCharacterTextSplitter(
-            chunk_size=self._chunk_size,
-            chunk_overlap=self._text_chunk_overlap,
-            separators=separators,
-            add_start_index=True
-        )
-        docs = splitter.create_documents([text])
+            docs = self.splitter_md.create_documents([text])
+        elif path.endswith(".txt"):
+            docs = self.splitter_txt.create_documents([text])
+        elif path.endswith(".py"):
+            docs = self.splitter_code.create_documents([text])
+        else:
+            print(f"Unknown file to save: '{path}'.")
+
         path_info = f"Path: {path.replace('/', ' ')}\n"
         for i, doc in enumerate(docs):
             start = doc.metadata["start_index"]
             end = start + len(doc.page_content)
-            self.text_documents.append({
+            document = {
                 "path": path,
                 "chunk": i,
                 "text": f"{path_info}\n{doc.page_content}",
                 "index": (start, end)
-            })
-
-    def _save_file_content(self, path: str, text: str) -> None:
-        if path.endswith(".py"):
-            self._chunk_code_file(path, text)
-        elif path.endswith(".md") or path.endswith(".txt"):
-            self._chunk_text_file(path, text)
+            }
+            if path.endswith(".py"):
+                self.code_documents.append(document)
+            else:
+                self.text_documents.append(document)
 
     def upload(self) -> None:
         if self.directory == "":
@@ -87,10 +84,11 @@ class UploadDir:
                     self.files_path.append(str(item))
         get_dir_content(self.directory)
 
+        # open all the files and save the content as chunks
         for file_path in self.files_path:
             with open(file_path, "r", encoding="utf-8") as file:
                 try:
-                    self._save_file_content(file_path, file.read())
+                    self._chunk_file_and_save(file_path, file.read())
                 except Exception as error:
                     print(error)
                     continue

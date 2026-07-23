@@ -121,12 +121,10 @@ if __name__ == "__main__":
     updir = UploadDir("data/raw/vllm-0.10.1")
     updir.set_chunk_size(args.max_chunk_size)
     updir.upload()
-
     searcher = BM25Searcher()
     searcher.set_top_k(args.k)
     searcher.set_text_documents(updir.get_text_documents())
     searcher.set_code_documents(updir.get_code_documents())
-    searcher.set_top_k(10)
 
     path = Path(args.dataset_path)
     type = "doc"

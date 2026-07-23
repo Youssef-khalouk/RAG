@@ -89,15 +89,15 @@ download:
 	unzip -o datasets_private.zip -d data/datasets_private
 	rm -rf datasets_private.zip
 
-	curl -L -o datasets_public.zip https://cdn.intra.42.fr/document/document/54693/datasets_public.zip
+	curl -L -o datasets_public.zip https://cdn.intra.42.fr/document/document/55367/datasets_public.zip
 	unzip -o datasets_public.zip -d data
 	rm -rf datasets_public.zip
 
-	curl -L -o vllm-0.10.1.zip https://cdn.intra.42.fr/document/document/54695/vllm-0.10.1.zip
+	curl -L -o vllm-0.10.1.zip https://cdn.intra.42.fr/document/document/55369/vllm-0.10.1.zip
 	unzip -o vllm-0.10.1.zip -d data/raw
 	rm -rf vllm-0.10.1.zip
 	
-	curl -L -o moulinette.zip https://cdn.intra.42.fr/document/document/54696/moulinette.zip
+	curl -L -o moulinette.zip https://cdn.intra.42.fr/document/document/55370/moulinette.zip
 	unzip -o moulinette.zip -d data/moulinette
 	rm -rf moulinette.zip
 

@@ -12,7 +12,8 @@ dependencies = [
     "mypy",
     "rank_bm25",
     "colorama",
-    "langchain_text_splitters"
+    "langchain_text_splitters",
+    "chonkie",
 ]
 
 [build-system]
