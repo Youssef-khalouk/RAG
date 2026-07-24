@@ -134,17 +134,16 @@ if __name__ == "__main__":
     array = []
     for q in json_data["rag_questions"]:
         dic = {}
-        ar = []
+        retrieved_sources = []
         dic["question_id"] = q["question_id"]
         dic["question"] = q["question"]
         documents = searcher.query(q["question"], type)
         for d in documents:
-            dd = {}
-            dd["file_path"] = d["path"].replace("\\", "/")
-            dd["first_character_index"] = d["index"][0]
-            dd["last_character_index"] = d["index"][1]
-            ar.append(dd)
-        dic["retrieved_sources"] = ar
+            # print(d[1])
+            # print(searcher.get_document(d[1], d[2]))
+            # exit(0)
+            retrieved_sources.append(searcher.get_document(d[1], d[2]))
+        dic["retrieved_sources"] = retrieved_sources
         array.append(dic)
     my_dict = {}
     my_dict["search_results"] = array

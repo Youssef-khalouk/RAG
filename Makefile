@@ -13,37 +13,6 @@ M_PARAMETERS         = --k 10 --max_context_length 2000
 MOULINETTE           = ./data/moulinette/moulinette-ubuntu evaluate_student_search_results
 P_PARAMETERS         = --save_directory=$(OUTPUT_FILE) --k 10 --max_chunk_size 2000
 
-help:
-	@echo "Usage: make <target>"
-	@echo
-	@echo "Setup:"
-	@echo "  install              Install project dependencies"
-	@echo "  download             Download datasets, vLLM, and moulinette"
-	@echo
-	@echo "Run:"
-	@echo "  run                  Run application with default parameters"
-	@echo "  run_public_doc       Run on public documentation dataset"
-	@echo "  run_public_code      Run on public code dataset"
-	@echo "  run_private_doc      Run on private documentation dataset"
-	@echo "  run_private_code     Run on private code dataset"
-	@echo
-	@echo "Evaluation:"
-	@echo "  moulinette_public_doc     Evaluate public documentation results"
-	@echo "  moulinette_public_code    Evaluate public code results"
-	@echo "  moulinette_private_doc    Evaluate private documentation results"
-	@echo "  moulinette_private_code   Evaluate private code results"
-	@echo
-	@echo "Combined run + evaluation:"
-	@echo "  public_doc           Run + evaluate public documentation"
-	@echo "  public_code          Run + evaluate public code"
-	@echo "  private_doc          Run + evaluate private documentation"
-	@echo "  private_code         Run + evaluate private code"
-	@echo
-	@echo "Development:"
-	@echo "  debug                Run application with pdb"
-	@echo "  lint                 Run flake8 and mypy checks"
-	@echo "  clean                Remove caches and generated files"
-
 export HF_HOME=/tmp/hf_home
 export UV_CACHE_DIR=/tmp/uv_cache_dir
 export UV_PROJECT_ENVIRONMENT=/tmp/uv_venv
@@ -107,7 +76,6 @@ download:
 	rm -rf vllm-0.10.1.zip
 	rm -rf moulinette.zip
 
-
 debug:
 	uv run python -m pdb src
 
@@ -125,6 +93,37 @@ lint:
 	            --ignore-missing-imports \
 	            --disallow-untyped-defs \
 	            --check-untyped-defs
+
+help:
+	@echo "Usage: make <target>"
+	@echo
+	@echo "Setup:"
+	@echo "  install              Install project dependencies"
+	@echo "  download             Download datasets, vLLM, and moulinette"
+	@echo
+	@echo "Run:"
+	@echo "  run                  Run application with default parameters"
+	@echo "  run_public_doc       Run on public documentation dataset"
+	@echo "  run_public_code      Run on public code dataset"
+	@echo "  run_private_doc      Run on private documentation dataset"
+	@echo "  run_private_code     Run on private code dataset"
+	@echo
+	@echo "Evaluation:"
+	@echo "  moulinette_public_doc     Evaluate public documentation results"
+	@echo "  moulinette_public_code    Evaluate public code results"
+	@echo "  moulinette_private_doc    Evaluate private documentation results"
+	@echo "  moulinette_private_code   Evaluate private code results"
+	@echo
+	@echo "Combined run + evaluation:"
+	@echo "  public_doc           Run + evaluate public documentation"
+	@echo "  public_code          Run + evaluate public code"
+	@echo "  private_doc          Run + evaluate private documentation"
+	@echo "  private_code         Run + evaluate private code"
+	@echo
+	@echo "Development:"
+	@echo "  debug                Run application with pdb"
+	@echo "  lint                 Run flake8 and mypy checks"
+	@echo "  clean                Remove caches and generated files"
 
 .PHONY: \
 help \

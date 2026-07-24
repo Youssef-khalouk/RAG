@@ -3,7 +3,8 @@ import sys
 from langchain_text_splitters import RecursiveCharacterTextSplitter, Language
 import json
 import os
-
+from datetime import datetime
+from .process import Process
 
 class UploadDir:
     def __init__(self, directory: str = ""):
@@ -28,6 +29,7 @@ class UploadDir:
             separators=["\n# ", ".\n", "\n", " ", ""],
             add_start_index=True
         )
+        # this one for python code
         self.splitter_code = RecursiveCharacterTextSplitter.from_language(
             language=Language.PYTHON,
             chunk_size=self._chunk_size,
@@ -59,25 +61,32 @@ class UploadDir:
         p = Path(path)
         path_info = f"Path: {path.replace('/', ' ')}\n{p.stem}\n {p.stem}\n"
         path_info += f" {p.stem.replace("_", " ")}\n{p.stem.replace("_", " ")}"
+
         if path.endswith(".py"):
-            self.code_documents[path] = []
-        else:   
-            self.text_documents[path] = []
+            self.code_documents[path] = {
+                "last_updated_time": str(datetime.fromtimestamp(p.stat().st_mtime)),
+                "chunks": []
+            }
+        else:
+            self.text_documents[path] = {
+                "last_updated_time": str(datetime.fromtimestamp(p.stat().st_mtime)),
+                "chunks": []
+            }
+
         for i, doc in enumerate(docs):
             start = doc.metadata["start_index"]
             end = start + len(doc.page_content)
             document = {
-                # "path": path,
                 "chunk": i,
                 "text": f"{path_info}\n{doc.page_content}",
-                "index": (start, end)
+                "processed_text": Process.preprocess_doc(f"{path_info}\n{doc.page_content}"),
+                "start_index": start,
+                "end_index": end
             }
             if path.endswith(".py"):
-                self.code_documents[path].append(document)
-                # self.code_documents.append(document)
+                self.code_documents[path]["chunks"].append(document)
             else:
-                self.text_documents[path].append(document)
-                # self.text_documents.append(document)
+                self.text_documents[path]["chunks"].append(document)
 
     def upload(self) -> None:
         if self.directory == "":
