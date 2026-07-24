@@ -1,15 +1,16 @@
 from pathlib import Path
 import sys
 from langchain_text_splitters import RecursiveCharacterTextSplitter, Language
-from chonkie import CodeChunker
+import json
+import os
 
 
 class UploadDir:
     def __init__(self, directory: str = ""):
         self.directory: str = directory
         self.files_path: list[str] = []
-        self.text_documents: list[dict] = []
-        self.code_documents: list[dict] = []
+        self.text_documents: dict = {}
+        self.code_documents: dict = {}
         self._chunk_size = 2000
         self._doc_chunk_overlap = 0
         self._code_chunk_overlap = 0
@@ -55,21 +56,28 @@ class UploadDir:
             docs = self.splitter_code.create_documents([text])
         else:
             print(f"Unknown file to save: '{path}'.")
-
-        path_info = f"Path: {path.replace('/', ' ')}\n"
+        p = Path(path)
+        path_info = f"Path: {path.replace('/', ' ')}\n{p.stem}\n {p.stem}\n"
+        path_info += f" {p.stem.replace("_", " ")}\n{p.stem.replace("_", " ")}"
+        if path.endswith(".py"):
+            self.code_documents[path] = []
+        else:   
+            self.text_documents[path] = []
         for i, doc in enumerate(docs):
             start = doc.metadata["start_index"]
             end = start + len(doc.page_content)
             document = {
-                "path": path,
+                # "path": path,
                 "chunk": i,
                 "text": f"{path_info}\n{doc.page_content}",
                 "index": (start, end)
             }
             if path.endswith(".py"):
-                self.code_documents.append(document)
+                self.code_documents[path].append(document)
+                # self.code_documents.append(document)
             else:
-                self.text_documents.append(document)
+                self.text_documents[path].append(document)
+                # self.text_documents.append(document)
 
     def upload(self) -> None:
         if self.directory == "":
@@ -92,3 +100,12 @@ class UploadDir:
                 except Exception as error:
                     print(error)
                     continue
+        
+        # save the documents
+        os.makedirs("data/processed", exist_ok=True)
+        with open("data/processed/doc_documents.json", "w") as file:
+            json.dump(self.text_documents, file, indent=4)
+            print("text documents saved seccessfuly.")
+        with open("data/processed/code_documents.json", "w") as file:
+            json.dump(self.code_documents, file, indent=4)
+            print("code documents saved seccessfuly.")

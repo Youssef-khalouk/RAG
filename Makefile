@@ -86,20 +86,27 @@ private_code: run_private_code moulinette_private_code
 download:
 	mkdir -p data
 	curl -L -o datasets_private.zip https://cdn.intra.42.fr/document/document/54697/datasets_private.zip
-	unzip -o datasets_private.zip -d data/datasets_private
-	rm -rf datasets_private.zip
-
 	curl -L -o datasets_public.zip https://cdn.intra.42.fr/document/document/55367/datasets_public.zip
-	unzip -o datasets_public.zip -d data
-	rm -rf datasets_public.zip
-
 	curl -L -o vllm-0.10.1.zip https://cdn.intra.42.fr/document/document/55369/vllm-0.10.1.zip
-	unzip -o vllm-0.10.1.zip -d data/raw
-	rm -rf vllm-0.10.1.zip
-	
 	curl -L -o moulinette.zip https://cdn.intra.42.fr/document/document/55370/moulinette.zip
-	unzip -o moulinette.zip -d data/moulinette
+
+	if [ "$(OS)" = "Windows_NT" ]; then \
+		powershell -Command "Expand-Archive -Path datasets_private.zip -DestinationPath data/datasets_private -Force"; \
+		powershell -Command "Expand-Archive -Path datasets_public.zip -DestinationPath data -Force"; \
+		powershell -Command "Expand-Archive -Path vllm-0.10.1.zip -DestinationPath data/raw -Force"; \
+		powershell -Command "Expand-Archive -Path moulinette.zip -DestinationPath data/moulinette -Force"; \
+	else \
+		unzip -o datasets_private.zip -d data/datasets_private; \
+		unzip -o datasets_public.zip -d data; \
+		unzip -o vllm-0.10.1.zip -d data/raw; \
+		unzip -o moulinette.zip -d data/moulinette; \
+	fi
+
+	rm -rf datasets_private.zip
+	rm -rf datasets_public.zip
+	rm -rf vllm-0.10.1.zip
 	rm -rf moulinette.zip
+
 
 debug:
 	uv run python -m pdb src
