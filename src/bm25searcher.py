@@ -14,6 +14,7 @@ class BM25Searcher:
         self._tokenized_code_docs: list[list[str]] = []
         self.bm25_text: Any = None
         self.bm25_code: Any = None
+        self.bm25_both: Any = None
         self.top_k = 5
 
     def set_top_k(self, size: int) -> None:
@@ -39,31 +40,48 @@ class BM25Searcher:
         self.text_documents = documents
         self.doc_chunks = []
         for k, v in documents.items():
+            if k == "k":
+                continue
             for chunk in v["chunks"]:
                 self.doc_chunks.append([chunk["processed_text"], k, chunk["chunk"]])
         self._tokenized_text_docs = [chunk[0].split() for chunk in self.doc_chunks]
         self.bm25_text = BM25Okapi(self._tokenized_text_docs)
+        self._set_both_documents()
 
     def set_code_documents(self, documents: list[dict]) -> None:
         self.code_documents = documents
         self.code_chunks = []
         for k, v in documents.items():
+            if k == "k":
+                continue
             for chunk in v["chunks"]:
                 self.code_chunks.append([chunk["processed_text"], k, chunk["chunk"]])
         self._tokenized_code_docs = [chunk[0].split() for chunk in self.code_chunks]
         self.bm25_code = BM25Okapi(self._tokenized_code_docs)
+        self._set_both_documents()
 
-    def query(self, query: str, type_flag: str = "doc") -> list[dict]:
+    def _set_both_documents(self) -> None:
+        self.bm25_both = BM25Okapi(self._tokenized_text_docs +
+                                   self._tokenized_code_docs)
+
+    def query(self, query: str, type_flag: str = "") -> list[dict]:
         if self.text_documents is None or self.code_documents is None:
             print("there is no documents yet to call query!")
             sys.exit(1)
 
         if type_flag == "doc":
-            scores = self.bm25_text.get_scores(Process.preprocess_doc(query))
+            scores = self.bm25_text.get_scores(
+                Process.preprocess_doc(query).split())
             documents = self.doc_chunks
-        else:
-            scores = self.bm25_code.get_scores(Process.preprocess_code(query))
+        elif type_flag == "code":
+            scores = self.bm25_code.get_scores(
+                Process.preprocess_code(query).split())
             documents = self.code_chunks
+        else:
+            # both
+            scores = self.bm25_both.get_scores(
+                Process.preprocess_doc(query).split())
+            documents = self.doc_chunks + self.code_chunks
 
         top_indexes = sorted(
             range(len(scores)),

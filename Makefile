@@ -8,10 +8,12 @@ PUBLIC_ANSWERD_CODE  = "data/datasets_public/public/AnsweredQuestions/dataset_co
 PRIVATE_ANSWERD_DOC  = "data/datasets_private/private/AnsweredQuestions/dataset_docs_private.json"
 PRIVATE_ANSWERD_CODE = "data/datasets_private/private/AnsweredQuestions/dataset_code_private.json"
 
-OUTPUT_FILE          = "data/output.json"
-M_PARAMETERS         = --k 10 --max_context_length 2000
 MOULINETTE           = ./data/moulinette/moulinette-ubuntu evaluate_student_search_results
-P_PARAMETERS         = --save_directory=$(OUTPUT_FILE) --k 10 --max_chunk_size 2000
+OUTPUT_FILE          = --save_directory "data/output.json"
+K                    = --k 10
+MAX_CHUNK_SIZE       = --max_chunk_size 2000
+M_PARAMETERS         = $(K) $(MAX_CHUNK_SIZE)
+P_PARAMETERS         = $(OUTPUT_FILE) $(K) $(MAX_CHUNK_SIZE)
 
 export HF_HOME=/tmp/hf_home
 export UV_CACHE_DIR=/tmp/uv_cache_dir
@@ -26,26 +28,46 @@ install:
 run:
 	uv run python -m src
 
-run_public_doc:
-	uv run python -m src --dataset_path=$(PUBLIC_DOC_PATH) $(P_PARAMETERS)
-run_public_code:
-	uv run python -m src --dataset_path=$(PUBLIC_CODE_PATH) $(P_PARAMETERS)
-run_private_doc:
-	uv run python -m src --dataset_path=$(PRIVATE_DOC_PATH) $(P_PARAMETERS)
-run_private_code:
-	uv run python -m src --dataset_path=$(PRIVATE_CODE_PATH) $(P_PARAMETERS)
+index_public_doc:
+	uv run python -m src index  MAX_CHUNK_SIZE
+index_public_code:
+	uv run python -m src index MAX_CHUNK_SIZE
+index_private_doc:
+	uv run python -m src index MAX_CHUNK_SIZE
+index_private_code:
+	uv run python -m src index MAX_CHUNK_SIZE
+
+
+
+search_public_doc:
+	uv run python -m src search $(K) --query "what is https?"
+search_public_code:
+	uv run python -m src search $(K) --query "how to create a class in python?"
+search_private_doc:
+	uv run python -m src search $(K) --query "what is the capital of France?"
+search_private_code:
+	uv run python -m src search $(K) --query "how to sort a list in python?"
+
+search_dataset_public_doc:
+	uv run python -m src search_dataset  $(OUTPUT_FILE) $(K) --dataset_path=$(PUBLIC_DOC_PATH)
+search_dataset_public_code:
+	uv run python -m src search_dataset $(OUTPUT_FILE) $(K) --dataset_path=$(PUBLIC_CODE_PATH)
+search_dataset_private_doc:
+	uv run python -m src search_dataset $(OUTPUT_FILE) $(K) --dataset_path=$(PRIVATE_DOC_PATH)
+search_dataset_private_code:
+	uv run python -m src search_dataset $(OUTPUT_FILE) $(K) --dataset_path=$(PRIVATE_CODE_PATH)
 
 moulinette:
 	$(MOULINETTE)
 
 moulinette_public_doc:
-	$(MOULINETTE) $(OUTPUT_FILE) $(PUBLIC_ANSWERD_DOC) $(M_PARAMETERS)
+	$(MOULINETTE) $(OUTPUT_FILE) $(PUBLIC_ANSWERD_DOC) $(M_PARAMETERS) --dataset_path=$(PUBLIC_DOC_PATH)
 moulinette_public_code:
-	$(MOULINETTE) $(OUTPUT_FILE) $(PUBLIC_ANSWERD_CODE) $(M_PARAMETERS)
+	$(MOULINETTE) $(OUTPUT_FILE) $(PUBLIC_ANSWERD_CODE) $(M_PARAMETERS) --dataset_path=$(PUBLIC_CODE_PATH)
 moulinette_private_doc:
-	$(MOULINETTE) $(OUTPUT_FILE) $(PRIVATE_ANSWERD_DOC) $(M_PARAMETERS)
+	$(MOULINETTE) $(OUTPUT_FILE) $(PRIVATE_ANSWERD_DOC) $(M_PARAMETERS) --dataset_path=$(PRIVATE_DOC_PATH)
 moulinette_private_code:
-	$(MOULINETTE) $(OUTPUT_FILE) $(PRIVATE_ANSWERD_CODE) $(M_PARAMETERS)
+	$(MOULINETTE) $(OUTPUT_FILE) $(PRIVATE_ANSWERD_CODE) $(M_PARAMETERS) --dataset_path=$(PRIVATE_CODE_PATH)
 
 public_doc: run_public_doc moulinette_public_doc
 public_code: run_public_code moulinette_public_code

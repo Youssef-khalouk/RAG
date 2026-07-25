@@ -13,6 +13,7 @@ dependencies = [
     "rank_bm25",
     "colorama",
     "langchain_text_splitters",
+    "fire",
 ]
 
 [build-system]

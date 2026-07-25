@@ -6,13 +6,14 @@ import os
 from datetime import datetime
 from .process import Process
 
+
 class UploadDir:
-    def __init__(self, directory: str = ""):
+    def __init__(self, directory: str = "", chunk_size: int = 2000):
         self.directory: str = directory
         self.files_path: list[str] = []
         self.text_documents: dict = {}
         self.code_documents: dict = {}
-        self._chunk_size = 2000
+        self._chunk_size = chunk_size
         self._doc_chunk_overlap = 0
         self._code_chunk_overlap = 0
 
@@ -52,43 +53,98 @@ class UploadDir:
     def _chunk_file_and_save(self, path: str, text: str) -> None:
         if path.endswith(".md"):
             docs = self.splitter_md.create_documents([text])
+            documents = self.text_documents
         elif path.endswith(".txt"):
             docs = self.splitter_txt.create_documents([text])
+            documents = self.text_documents
         elif path.endswith(".py"):
             docs = self.splitter_code.create_documents([text])
+            documents = self.code_documents
         else:
             print(f"Unknown file to save: '{path}'.")
+            return
         p = Path(path)
         path_info = f"Path: {path.replace('/', ' ')}\n{p.stem}\n {p.stem}\n"
-        path_info += f" {p.stem.replace("_", " ")}\n{p.stem.replace("_", " ")}"
-
-        if path.endswith(".py"):
-            self.code_documents[path] = {
-                "last_updated_time": str(datetime.fromtimestamp(p.stat().st_mtime)),
-                "chunks": []
-            }
-        else:
-            self.text_documents[path] = {
-                "last_updated_time": str(datetime.fromtimestamp(p.stat().st_mtime)),
-                "chunks": []
-            }
+        path_info += f" {p.stem.replace('_', ' ')}\n{p.stem.replace('_', ' ')}"
+        last_updated_time = str(datetime.fromtimestamp(p.stat().st_mtime))
+        documents[path] = {
+            "last_updated_time": last_updated_time,
+            "chunks": []
+        }
 
         for i, doc in enumerate(docs):
+            text = f"{path_info}\n{doc.page_content}"
+            if path.endswith(".py"):
+                processed_text = Process.preprocess_code(text)
+            else:
+                processed_text = Process.preprocess_doc(text)
             start = doc.metadata["start_index"]
             end = start + len(doc.page_content)
             document = {
                 "chunk": i,
-                "text": f"{path_info}\n{doc.page_content}",
-                "processed_text": Process.preprocess_doc(f"{path_info}\n{doc.page_content}"),
+                "text": text,
+                "processed_text": processed_text,
                 "start_index": start,
                 "end_index": end
             }
-            if path.endswith(".py"):
-                self.code_documents[path]["chunks"].append(document)
-            else:
-                self.text_documents[path]["chunks"].append(document)
+            documents[path]["chunks"].append(document)
 
-    def upload(self) -> None:
+    def _open_json_files(self, use_file_chunk_size: bool = False) -> None:
+        if Path("data/processed/doc_documents.json").exists():
+            with open("data/processed/doc_documents.json", "r") as file:
+                try:
+                    self.text_documents = json.load(file)
+                    print("text documents loaded seccessfuly.")
+                except Exception:
+                    pass
+        if Path("data/processed/code_documents.json").exists():
+            with open("data/processed/code_documents.json", "r") as file:
+                try:
+                    self.code_documents = json.load(file)
+                    print("code documents loaded seccessfuly.")
+                except Exception as error:
+                    print(f"Error loading code documents: {error}")
+        # after loading the json files, we need to set the chunk size
+        # to the one in the json files if it exists
+        if use_file_chunk_size:
+            self._chunk_size = self.text_documents.get("k", self._chunk_size)
+
+    def _load_files(self) -> bool:
+        # open all the files and save the content as chunks
+        is_any_file_processed = False
+        if self.text_documents.get("k", 0) != self._chunk_size:
+            # if the chunk size has changed, we need to reprocess all files
+            self.text_documents = {}
+            self.code_documents = {}
+        for path in self.files_path:
+            l_u_time = str(datetime.fromtimestamp(Path(path).stat().st_mtime))
+            if path.endswith(".py"):
+                documents = self.code_documents
+            else:
+                documents = self.text_documents
+
+            if path in documents:
+                if (documents[path]["last_updated_time"] == l_u_time):
+                    continue
+            with open(path, "r", encoding="utf-8") as file:
+                self._chunk_file_and_save(path, file.read())
+            is_any_file_processed = True
+            print(f"File '{path}' processed and saved successfully.")
+
+        return is_any_file_processed
+
+    def _save_documents(self) -> None:
+        os.makedirs("data/processed", exist_ok=True)
+        self.text_documents["k"] = self._chunk_size
+        self.code_documents["k"] = self._chunk_size
+        with open("data/processed/doc_documents.json", "w") as file:
+            json.dump(self.text_documents, file, indent=4)
+            print("text documents saved seccessfuly.")
+        with open("data/processed/code_documents.json", "w") as file:
+            json.dump(self.code_documents, file, indent=4)
+            print("code documents saved seccessfuly.")
+
+    def upload(self, use_file_chunk_size: bool = False) -> None:
         if self.directory == "":
             return
 
@@ -101,20 +157,9 @@ class UploadDir:
                     self.files_path.append(str(item))
         get_dir_content(self.directory)
 
-        # open all the files and save the content as chunks
-        for file_path in self.files_path:
-            with open(file_path, "r", encoding="utf-8") as file:
-                try:
-                    self._chunk_file_and_save(file_path, file.read())
-                except Exception as error:
-                    print(error)
-                    continue
-        
-        # save the documents
-        os.makedirs("data/processed", exist_ok=True)
-        with open("data/processed/doc_documents.json", "w") as file:
-            json.dump(self.text_documents, file, indent=4)
-            print("text documents saved seccessfuly.")
-        with open("data/processed/code_documents.json", "w") as file:
-            json.dump(self.code_documents, file, indent=4)
-            print("code documents saved seccessfuly.")
+        # load the json files if they exist
+        self._open_json_files(use_file_chunk_size)
+
+        if self._load_files():
+            # save the documents if any file was processed
+            self._save_documents()
