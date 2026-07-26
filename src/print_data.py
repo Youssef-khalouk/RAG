@@ -56,15 +56,13 @@ STOP_WORDS = {
 }
 
 
-def print_data(data, documents):
-    for q in data["rag_questions"]:
-        question = q["question"]
-        for d in documents:
-            print(f"{Fore.YELLOW}\n\nQuestion: {question}{Style.RESET_ALL}")
-            print(f"{Fore.BLUE}path: {d['path']} [chunk: {d['chunk']}]{Style.RESET_ALL}")
-            text = d["text"]
-            for q in question.split(" "):
-                if q not in STOP_WORDS:
-                    text = text.replace(q, f"{Fore.YELLOW}{q}{Fore.WHITE}")
-            print(f"{Fore.WHITE}\ntext: {text}{Style.RESET_ALL}")
-        # break
+def print_data(query, documents, searcher=None) -> None:
+    for d in documents:
+        doc = searcher.get_document_content(d[1], d[2])
+        print(f"{Fore.YELLOW}\n\nQuestion: {query}{Style.RESET_ALL}")
+        print(f"{Fore.BLUE}path: {doc['file_path']} [chunk: {doc['first_character_index']}]{Style.RESET_ALL}")
+        text = doc["text"].replace("\n", "\n\t")
+        for q in query.split(" "):
+            if q.lower() not in STOP_WORDS:
+                text = text.replace(q, f"{Fore.YELLOW}{q}{Fore.WHITE}")
+        print(f"{Fore.GREEN}text:\n\t{Fore.WHITE}{text}{Style.RESET_ALL}")

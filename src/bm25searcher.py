@@ -10,6 +10,7 @@ class BM25Searcher:
         self.code_documents: dict = None
         self.doc_chunks: list[str] = []
         self.code_chunks: list[str] = []
+        self.both_chunks: list[str] = []
         self._tokenized_text_docs: list[list[str]] = []
         self._tokenized_code_docs: list[list[str]] = []
         self.bm25_text: Any = None
@@ -22,6 +23,20 @@ class BM25Searcher:
             print("top_k size should be more then 0!")
             sys.exit(1)
         self.top_k = size
+
+    def get_document_content(self, path: str, chunk: int) -> list[dict]:
+        doc = self.text_documents.get(path, None)
+        if doc is None:
+            doc = self.code_documents.get(path, None)
+        if doc is None:
+            return {}
+        chunk_doc = doc["chunks"][chunk]
+        d = {}
+        d["file_path"] = path.replace("\\", "/")
+        d["first_character_index"] = chunk_doc["start_index"]
+        d["last_character_index"] = chunk_doc["end_index"]
+        d["text"] = chunk_doc["text"]
+        return d
 
     def get_document(self, path: str, chunk: int) -> dict | None:
         doc = self.text_documents.get(path, None)
@@ -63,6 +78,7 @@ class BM25Searcher:
     def _set_both_documents(self) -> None:
         self.bm25_both = BM25Okapi(self._tokenized_text_docs +
                                    self._tokenized_code_docs)
+        self.both_chunks = self.doc_chunks + self.code_chunks
 
     def query(self, query: str, type_flag: str = "") -> list[dict]:
         if self.text_documents is None or self.code_documents is None:
@@ -81,7 +97,7 @@ class BM25Searcher:
             # both
             scores = self.bm25_both.get_scores(
                 Process.preprocess_doc(query).split())
-            documents = self.doc_chunks + self.code_chunks
+            documents = self.both_chunks
 
         top_indexes = sorted(
             range(len(scores)),

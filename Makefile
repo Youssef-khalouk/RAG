@@ -12,7 +12,7 @@ MOULINETTE           = ./data/moulinette/moulinette-ubuntu evaluate_student_sear
 OUTPUT_FILE          = --save_directory "data/output.json"
 K                    = --k 10
 MAX_CHUNK_SIZE       = --max_chunk_size 2000
-M_PARAMETERS         = $(K) $(MAX_CHUNK_SIZE)
+M_PARAMETERS         = $(K) --max_context_length 2000
 P_PARAMETERS         = $(OUTPUT_FILE) $(K) $(MAX_CHUNK_SIZE)
 
 export HF_HOME=/tmp/hf_home
@@ -29,24 +29,33 @@ run:
 	uv run python -m src
 
 index_public_doc:
-	uv run python -m src index  MAX_CHUNK_SIZE
+	uv run python -m src index  $(MAX_CHUNK_SIZE)
 index_public_code:
-	uv run python -m src index MAX_CHUNK_SIZE
+	uv run python -m src index $(MAX_CHUNK_SIZE)
 index_private_doc:
-	uv run python -m src index MAX_CHUNK_SIZE
+	uv run python -m src index $(MAX_CHUNK_SIZE)
 index_private_code:
-	uv run python -m src index MAX_CHUNK_SIZE
+	uv run python -m src index $(MAX_CHUNK_SIZE)
 
 
 
 search_public_doc:
-	uv run python -m src search $(K) --query "what is https?"
+	uv run python -m src search $(K) --query "what is http?"
 search_public_code:
 	uv run python -m src search $(K) --query "how to create a class in python?"
 search_private_doc:
 	uv run python -m src search $(K) --query "what is the capital of France?"
 search_private_code:
 	uv run python -m src search $(K) --query "how to sort a list in python?"
+
+search_content_public_doc:
+	uv run python -m src search_content $(K) --query "what is API documentation for vLLM's configuration classes?"
+search_content_public_code:
+	uv run python -m src search_content $(K) --query "how to create a class in python?"
+search_content_private_doc:
+	uv run python -m src search_content $(K) --query "what is the capital of France?"
+search_content_private_code:
+	uv run python -m src search_content $(K) --query "how to sort a list in python?"
 
 search_dataset_public_doc:
 	uv run python -m src search_dataset  $(OUTPUT_FILE) $(K) --dataset_path=$(PUBLIC_DOC_PATH)
@@ -61,13 +70,13 @@ moulinette:
 	$(MOULINETTE)
 
 moulinette_public_doc:
-	$(MOULINETTE) $(OUTPUT_FILE) $(PUBLIC_ANSWERD_DOC) $(M_PARAMETERS) --dataset_path=$(PUBLIC_DOC_PATH)
+	$(MOULINETTE)  "data/output.json" $(PUBLIC_ANSWERD_DOC) $(M_PARAMETERS)
 moulinette_public_code:
-	$(MOULINETTE) $(OUTPUT_FILE) $(PUBLIC_ANSWERD_CODE) $(M_PARAMETERS) --dataset_path=$(PUBLIC_CODE_PATH)
+	$(MOULINETTE) "data/output.json" $(PUBLIC_ANSWERD_CODE) $(M_PARAMETERS)
 moulinette_private_doc:
-	$(MOULINETTE) $(OUTPUT_FILE) $(PRIVATE_ANSWERD_DOC) $(M_PARAMETERS) --dataset_path=$(PRIVATE_DOC_PATH)
+	$(MOULINETTE) "data/output.json" $(PRIVATE_ANSWERD_DOC) $(M_PARAMETERS)
 moulinette_private_code:
-	$(MOULINETTE) $(OUTPUT_FILE) $(PRIVATE_ANSWERD_CODE) $(M_PARAMETERS) --dataset_path=$(PRIVATE_CODE_PATH)
+	$(MOULINETTE) "data/output.json" $(PRIVATE_ANSWERD_CODE) $(M_PARAMETERS)
 
 public_doc: run_public_doc moulinette_public_doc
 public_code: run_public_code moulinette_public_code
