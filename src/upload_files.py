@@ -94,14 +94,14 @@ class UploadDir:
             with open("data/processed/doc_documents.json", "r") as file:
                 try:
                     self.text_documents = json.load(file)
-                    print("text documents loaded seccessfuly.")
+                    # print("text documents loaded seccessfuly.")
                 except Exception:
                     pass
         if Path("data/processed/code_documents.json").exists():
             with open("data/processed/code_documents.json", "r") as file:
                 try:
                     self.code_documents = json.load(file)
-                    print("code documents loaded seccessfuly.")
+                    # print("code documents loaded seccessfuly.")
                 except Exception as error:
                     print(f"Error loading code documents: {error}")
         # after loading the json files, we need to set the chunk size
@@ -139,14 +139,14 @@ class UploadDir:
         self.code_documents["k"] = self._chunk_size
         with open("data/processed/doc_documents.json", "w") as file:
             json.dump(self.text_documents, file, indent=4)
-            print("text documents saved seccessfuly.")
+            # print("text documents saved seccessfuly.")
         with open("data/processed/code_documents.json", "w") as file:
             json.dump(self.code_documents, file, indent=4)
-            print("code documents saved seccessfuly.")
+            # print("code documents saved seccessfuly.")
 
-    def upload(self, use_file_chunk_size: bool = False) -> None:
+    def upload(self, use_file_chunk_size: bool = False) -> bool:
         if self.directory == "":
-            return
+            return False
 
         def get_dir_content(path: str) -> None:
             directory = Path(path)
@@ -160,6 +160,8 @@ class UploadDir:
         # load the json files if they exist
         self._open_json_files(use_file_chunk_size)
 
-        if self._load_files():
+        processed = self._load_files()
+        if processed:
             # save the documents if any file was processed
             self._save_documents()
+        return processed

@@ -2,6 +2,9 @@ from rank_bm25 import BM25Okapi
 from .process import Process
 from typing import Any
 import sys
+import pickle
+from pathlib import Path
+import os
 
 
 class BM25Searcher:
@@ -17,6 +20,39 @@ class BM25Searcher:
         self.bm25_code: Any = None
         self.bm25_both: Any = None
         self.top_k = 5
+
+    def _is_cached_files_exist(self) -> bool:
+        return (Path("data/processed/bm25_text_cache.pkl").exists() and
+                Path("data/processed/bm25_code_cache.pkl").exists() and
+                Path("data/processed/bm25_both_cache.pkl").exists())
+
+    def _upload_cached_bm25(self) -> bool:
+        if self._is_cached_files_exist():
+            with open("data/processed/bm25_text_cache.pkl", "rb") as file:
+                cached = pickle.load(file)
+                self.bm25_text = cached["bm25"]
+            with open("data/processed/bm25_code_cache.pkl", "rb") as file:
+                cached = pickle.load(file)
+                self.bm25_code = cached["bm25"]
+            with open("data/processed/bm25_both_cache.pkl", "rb") as file:
+                cached = pickle.load(file)
+                self.bm25_both = cached["bm25"]
+            return True
+        else:
+            return False
+
+    def _save_bm25_cache(self) -> None:
+        os.makedirs("data/processed", exist_ok=True)
+        with open("data/processed/bm25_text_cache.pkl", "wb") as f:
+            pickle.dump({"bm25": self.bm25_text,}, f)
+
+        with open("data/processed/bm25_code_cache.pkl", "wb") as f:
+            pickle.dump({"bm25": self.bm25_code}, f)
+
+        with open("data/processed/bm25_both_cache.pkl", "wb") as f:
+            pickle.dump({"bm25": self.bm25_both}, f)
+
+        print("bm25 cache saved successfully.")
 
     def set_top_k(self, size: int) -> None:
         if size <= 0:
@@ -51,34 +87,44 @@ class BM25Searcher:
         d["last_character_index"] = chunk_doc["end_index"]
         return d
 
-    def set_text_documents(self, documents: list[dict]) -> None:
-        self.text_documents = documents
-        self.doc_chunks = []
-        for k, v in documents.items():
-            if k == "k":
-                continue
-            for chunk in v["chunks"]:
-                self.doc_chunks.append([chunk["processed_text"], k, chunk["chunk"]])
-        self._tokenized_text_docs = [chunk[0].split() for chunk in self.doc_chunks]
-        self.bm25_text = BM25Okapi(self._tokenized_text_docs)
-        self._set_both_documents()
+    def check_documents(self, documents_text: list[dict], documents_code: list[dict], is_files_changed: bool) -> None:
+        """this method does rebuild BM25 cache if its not exists."""
+        # this function used when i need to check the cached file is exist if not rebuild cache
+        if not is_files_changed and self._is_cached_files_exist():
+            return
+        self.set_documents(documents_text, documents_code, is_files_changed)
 
-    def set_code_documents(self, documents: list[dict]) -> None:
-        self.code_documents = documents
+    def set_documents(self, documents_text: list[dict], documents_code: list[dict], is_files_changed: bool) -> None:
+        self.text_documents = documents_text
+        self.code_documents = documents_code
         self.code_chunks = []
-        for k, v in documents.items():
+        for k, v in documents_code.items():
             if k == "k":
                 continue
             for chunk in v["chunks"]:
                 self.code_chunks.append([chunk["processed_text"], k, chunk["chunk"]])
+        self.doc_chunks = []
+        for k, v in documents_text.items():
+            if k == "k":
+                continue
+            for chunk in v["chunks"]:
+                self.doc_chunks.append([chunk["processed_text"], k, chunk["chunk"]])
+        self.both_chunks = self.doc_chunks + self.code_chunks
+
+        if not is_files_changed and self._upload_cached_bm25():
+            print("using cache bm25.\n\n")
+            return
+
+        self._tokenized_text_docs = [chunk[0].split() for chunk in self.doc_chunks]
+        self.bm25_text = BM25Okapi(self._tokenized_text_docs)
+
         self._tokenized_code_docs = [chunk[0].split() for chunk in self.code_chunks]
         self.bm25_code = BM25Okapi(self._tokenized_code_docs)
-        self._set_both_documents()
 
-    def _set_both_documents(self) -> None:
         self.bm25_both = BM25Okapi(self._tokenized_text_docs +
                                    self._tokenized_code_docs)
-        self.both_chunks = self.doc_chunks + self.code_chunks
+
+        self._save_bm25_cache()
 
     def query(self, query: str, type_flag: str = "") -> list[dict]:
         if self.text_documents is None or self.code_documents is None:
@@ -94,7 +140,7 @@ class BM25Searcher:
                 Process.preprocess_code(query).split())
             documents = self.code_chunks
         else:
-            # both
+            # get scores from both documents
             scores = self.bm25_both.get_scores(
                 Process.preprocess_doc(query).split())
             documents = self.both_chunks
