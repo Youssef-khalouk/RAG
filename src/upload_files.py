@@ -71,7 +71,7 @@ class UploadDir:
             "last_updated_time": last_updated_time,
             "chunks": []
         }
-
+        chunks = []
         for i, doc in enumerate(docs):
             text = f"{path_info}\n{doc.page_content}"
             if path.endswith(".py"):
@@ -81,13 +81,13 @@ class UploadDir:
             start = doc.metadata["start_index"]
             end = start + len(doc.page_content)
             document = {
-                "chunk": i,
-                "text": text,
+                "chunk": i,  # "text": text,
                 "processed_text": processed_text,
                 "start_index": start,
                 "end_index": end
             }
-            documents[path]["chunks"].append(document)
+            chunks.append(document)
+        documents[path]["chunks"] = chunks
 
     def _open_json_files(self, use_file_chunk_size: bool = False) -> None:
         if Path("data/processed/doc_documents.json").exists():
@@ -122,7 +122,6 @@ class UploadDir:
                 documents = self.code_documents
             else:
                 documents = self.text_documents
-
             if path in documents:
                 if (documents[path]["last_updated_time"] == l_u_time):
                     continue

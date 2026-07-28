@@ -28,15 +28,8 @@ install:
 run:
 	uv run python -m src
 
-index_public_doc:
+index:
 	uv run python -m src index  $(MAX_CHUNK_SIZE)
-index_public_code:
-	uv run python -m src index $(MAX_CHUNK_SIZE)
-index_private_doc:
-	uv run python -m src index $(MAX_CHUNK_SIZE)
-index_private_code:
-	uv run python -m src index $(MAX_CHUNK_SIZE)
-
 
 
 search_public_doc:
@@ -66,9 +59,19 @@ search_dataset_private_doc:
 search_dataset_private_code:
 	uv run python -m src search_dataset $(OUTPUT_FILE) $(K) --dataset_path=$(PRIVATE_CODE_PATH)
 
+
+answer_dataset_public_doc:
+	uv run python -m src answer_dataset --student_search_results_path="data/output.json" --save_directory="data/answer_dataset_results.json"
+answer_dataset_public_code:
+	uv run python -m src answer_dataset --student_search_results_path="data/output.json" --save_directory="data/answer_dataset_results.json"
+answer_dataset_private_doc:
+	uv run python -m src answer_dataset --student_search_results_path="data/output.json" --save_directory="data/answer_dataset_results.json"
+answer_dataset_private_code:
+	uv run python -m src answer_dataset --student_search_results_path="data/output.json" --save_directory="data/answer_dataset_results.json"
+
+
 moulinette:
 	$(MOULINETTE)
-
 moulinette_public_doc:
 	$(MOULINETTE)  "data/output.json" $(PUBLIC_ANSWERD_DOC) $(M_PARAMETERS)
 moulinette_public_code:
