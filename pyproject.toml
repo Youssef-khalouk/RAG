@@ -14,6 +14,7 @@ dependencies = [
     "colorama",
     "langchain_text_splitters",
     "fire",
+    "accelerate",
 ]
 
 [build-system]

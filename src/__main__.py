@@ -4,7 +4,7 @@ from .bm25searcher import BM25Searcher
 from pathlib import Path
 import fire
 from .print_data import print_data
-from .validation import (RagDataset,
+from .validaters import (RagDataset,
                          MinimalSource,
                          MinimalSearchResults,
                          StudentSearchResults,
