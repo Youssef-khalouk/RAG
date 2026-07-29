@@ -21,11 +21,6 @@ class BM25Searcher:
         self.bm25_both: Any = None
         self.top_k: int = 10
 
-    def _is_cached_files_exist(self) -> bool:
-        return (Path("data/processed/bm25_text_cache.pkl").exists() and
-                Path("data/processed/bm25_code_cache.pkl").exists() and
-                Path("data/processed/bm25_both_cache.pkl").exists())
-
     def _save_bm25_cache(self) -> None:
         os.makedirs("data/processed", exist_ok=True)
         with open("data/processed/bm25_text_cache.pkl", "wb") as f:
@@ -127,6 +122,26 @@ class BM25Searcher:
                                    self._tokenized_code_docs)
         self._save_bm25_cache()
 
+    def _is_cached_files_exist(self) -> bool:
+            return (Path("data/processed/bm25_text_cache.pkl").exists() and
+                    Path("data/processed/bm25_code_cache.pkl").exists() and
+                    Path("data/processed/bm25_both_cache.pkl").exists())
+
+    def _remove_cache_files(self)-> None:
+        """remove the cache if its curapted or something went wrong."""
+        try:
+            Path("data/processed/bm25_text_cache.pkl").unlink()
+        except Exception:
+            pass
+        try:
+            Path("data/processed/bm25_code_cache.pkl").unlink()
+        except Exception:
+            pass
+        try:
+            Path("data/processed/bm25_code_cache.pkl").unlink()
+        except Exception:
+            pass
+
     def load_bm25_cache(self) -> None:
         if not self._is_cached_files_exist():
             print("bm25 cache dosn't exists! run index to create cache.")
@@ -141,6 +156,7 @@ class BM25Searcher:
             except Exception:
                 print("Error: the cache is corupted"
                       "run index to create new cache.")
+                self._remove_cache_files()
                 exit(1)
 
         with open("data/processed/bm25_code_cache.pkl", "rb") as file:
@@ -152,6 +168,7 @@ class BM25Searcher:
             except Exception:
                 print("Error: the cache is corupted"
                       "run index to create new cache.")
+                self._remove_cache_files()
                 exit(1)
         with open("data/processed/bm25_both_cache.pkl", "rb") as file:
             try:
@@ -161,6 +178,7 @@ class BM25Searcher:
             except Exception:
                 print("Error: the cache is corupted"
                       "run index to create new cache.")
+                self._remove_cache_files()
                 exit(1)
 
     def query(self, query: str, type_flag: str = "") -> list[dict]:

@@ -15,9 +15,27 @@ MAX_CHUNK_SIZE       = --max_chunk_size 2000
 M_PARAMETERS         = $(K) --max_context_length 2000
 P_PARAMETERS         = $(OUTPUT_FILE) $(K) $(MAX_CHUNK_SIZE)
 
-export HF_HOME=/tmp/hf_home
-export UV_CACHE_DIR=/tmp/uv_cache_dir
-export UV_PROJECT_ENVIRONMENT=/tmp/uv_venv
+
+ifeq ($(OS),Windows_NT)
+    # Windows
+	export HF_HOME=C:/rag_env/hf_home
+	export UV_CACHE_DIR=C:/rag_env/uv_cache_dir
+	export UV_PROJECT_ENVIRONMENT=C:/rag_env/uv_venv
+
+else
+    ifneq ($(wildcard /mnt/c/RAG),)
+        # WSL
+		export HF_HOME=$(HOME)/.cache/hf_home
+		export UV_CACHE_DIR=$(HOME)/.cache/uv_cache_dir
+		export UV_PROJECT_ENVIRONMENT=$(HOME)/.cache/uv_venv
+
+    else
+        # Linux cluster
+		export HF_HOME=/tmp/hf_home
+		export UV_CACHE_DIR=/tmp/uv_cache_dir
+		export UV_PROJECT_ENVIRONMENT=/tmp/uv_venv
+    endif
+endif
 
 install:
 	uv sync
@@ -27,6 +45,9 @@ install:
 
 run:
 	uv run python -m src
+
+run_llm:
+	uv run python -m src LLM
 
 index:
 	uv run python -m src index  $(MAX_CHUNK_SIZE)

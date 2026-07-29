@@ -156,6 +156,12 @@ def evaluate() -> None:
     pass
 
 
+def LLM() -> None:
+    from .LLM import run_llm
+    run_llm()
+    print("\ndone.")
+
+
 if __name__ == "__main__":
 
     fire.Fire({
@@ -166,4 +172,5 @@ if __name__ == "__main__":
         "answer": answer,
         "answer_dataset": answer_dataset,
         "evaluate": evaluate,
+        "LLM": LLM,
     })
