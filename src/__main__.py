@@ -10,6 +10,7 @@ from .validaters import (RagDataset,
                          StudentSearchResults,
                          MinimalAnswer,
                          StudentSearchResultsAndAnswer)
+from .LLM import LLM
 
 
 def index(max_chunk_size: int = 2000) -> None:
@@ -100,6 +101,20 @@ def answer(query: str, k: int = 10) -> None:
     documents = searcher.query(query)
 
     # here i need to ask the llm model and print the answer.
+    context = ""
+    # count = 0
+    for d in documents:
+        context += "\n" + d[0]
+        # count += 1
+        # if count == 2:
+        #     break
+    # =========================================
+    # with open("file1.txt", "w") as file:
+    #     file.write(context)
+    # =========================================
+
+    the_answer = LLM.ask(question=query, context=context)
+    print(f"Question: {query}\nAnswer: {the_answer}")
 
 
 def answer_dataset(student_search_results_path: str,
@@ -120,23 +135,41 @@ def answer_dataset(student_search_results_path: str,
     files_chunks = {}
     for s_result in search_results.search_results:
         content = []
-        for chunk_info in s_result.retrieved_sources:
-            with open(chunk_info.file_path, "r", encoding="utf-8") as file:
+        for chunk in s_result.retrieved_sources:
+            with open(chunk.file_path, "r", encoding="utf-8") as file:
                 text = file.read()
-                text_chunk = text[chunk_info.first_character_index:
-                                  chunk_info.last_character_index]
+                text_chunk = text[chunk.first_character_index:
+                                  chunk.last_character_index]
+            text_pos = f" [{chunk.first_character_index},"
+            text_pos += f" {chunk.last_character_index}]"
+            text_path_info = chunk.file_path + text_pos
             content.append({
-                "file_path": chunk_info.file_path,
-                "text": text_chunk
+                "text": text_path_info + "\n" + text_chunk
             })
         files_chunks[s_result.question_id] = content
 
     answer_results: list[MinimalAnswer] = []
     for q in search_results.search_results:
-
-        answer = "This is a placeholder answer."
         # asking the llm model should be here
         # and the answer in the variable 'answer'
+        chunks = files_chunks.get(q.question_id, None)
+        print(f"size is {len(chunks)}.\n\n")
+        if chunks is None:
+            print(f"this question '{q.question}', "
+                  "is not in the student_search_results.")
+            continue
+        context = ""
+        # count = 0
+        for doc in chunks:
+            context += "\n" + doc["text"]
+            # count += 1git
+            # if count == 2:
+            #     break
+        # print(context)
+        # with open("file2.txt", "w") as file:
+        #     file.write(context)
+        # break
+        answer = LLM.ask(q.question, context=context)
 
         answer_result = MinimalAnswer(
             question_id=q.question_id,
@@ -146,17 +179,17 @@ def answer_dataset(student_search_results_path: str,
         )
         answer_results.append(answer_result)
 
-    output = StudentSearchResultsAndAnswer(
-        search_results=answer_results, k=search_results.k)
-    with open(save_directory, "w", encoding="utf-8") as file:
-        file.write(output.model_dump_json(indent=4))
+        output = StudentSearchResultsAndAnswer(
+            search_results=answer_results, k=search_results.k)
+        with open(save_directory, "w", encoding="utf-8") as file:
+            file.write(output.model_dump_json(indent=4))
 
 
 def evaluate() -> None:
     pass
 
 
-def LLM() -> None:
+def llm() -> None:
     from .LLM import run_llm
     run_llm()
     print("\ndone.")
@@ -172,5 +205,5 @@ if __name__ == "__main__":
         "answer": answer,
         "answer_dataset": answer_dataset,
         "evaluate": evaluate,
-        "LLM": LLM,
+        "LLM": llm,
     })

@@ -5,6 +5,7 @@ import sys
 import pickle
 from pathlib import Path
 import os
+import json
 
 
 class BM25Searcher:
@@ -14,8 +15,6 @@ class BM25Searcher:
         self.doc_chunks: list[str] = []
         self.code_chunks: list[str] = []
         self.both_chunks: list[str] = []
-        self._tokenized_text_docs: list[list[str]] = []
-        self._tokenized_code_docs: list[list[str]] = []
         self.bm25_text: Any = None
         self.bm25_code: Any = None
         self.bm25_both: Any = None
@@ -26,13 +25,11 @@ class BM25Searcher:
         with open("data/processed/bm25_text_cache.pkl", "wb") as f:
             pickle.dump({
                 "bm25": self.bm25_text,
-                "text_documents": self.text_documents,
                 "doc_chunks": self.doc_chunks
                 }, f)
         with open("data/processed/bm25_code_cache.pkl", "wb") as f:
             pickle.dump({
                 "bm25": self.bm25_code,
-                "code_documents": self.code_documents,
                 "code_chunks": self.code_chunks
                 }, f)
         with open("data/processed/bm25_both_cache.pkl", "wb") as f:
@@ -96,39 +93,59 @@ class BM25Searcher:
 
         self.text_documents = documents_text
         self.code_documents = documents_code
+
+        tokenized_text_docs = []
+        tokenized_code_docs = []
         self.code_chunks = []
+        self.doc_chunks = []
+
         for k, v in documents_code.items():
             if k == "k":
                 continue
+
             for chunk in v["chunks"]:
-                self.code_chunks.append(
-                    [chunk["processed_text"], k, chunk["chunk"]])
-        self.doc_chunks = []
+                text = chunk["path_tokens"] + chunk["text"]
+                tokenized_code_docs.append(Process.preprocess_code(text).split())
+                pos = f"[{chunk['start_index']}, {chunk['end_index']}]"
+                text = k + f" {pos}\n" + chunk["text"]
+                pos = f"[{chunk['start_index']}, {chunk['end_index']}]"
+                self.code_chunks.append((text, k, chunk["chunk"], pos))
+
         for k, v in documents_text.items():
             if k == "k":
                 continue
             for chunk in v["chunks"]:
-                self.doc_chunks.append(
-                    [chunk["processed_text"], k, chunk["chunk"]])
+                text = chunk["path_tokens"] + chunk["text"]
+                tokenized_text_docs.append(Process.preprocess_doc(text).split())
+                pos = f"[{chunk['start_index']}, {chunk['end_index']}]"
+                text = k + f" {pos}\n" + chunk["text"]
+                self.doc_chunks.append((text, k, chunk["chunk"]))
+
         self.both_chunks = self.doc_chunks + self.code_chunks
 
-        self._tokenized_text_docs = [
-            chunk[0].split() for chunk in self.doc_chunks]
-        self.bm25_text = BM25Okapi(self._tokenized_text_docs)
-        self._tokenized_code_docs = [
-            chunk[0].split() for chunk in self.code_chunks]
-        self.bm25_code = BM25Okapi(self._tokenized_code_docs)
-        self.bm25_both = BM25Okapi(self._tokenized_text_docs +
-                                   self._tokenized_code_docs)
+        self.bm25_text = BM25Okapi(tokenized_text_docs)
+        self.bm25_code = BM25Okapi(tokenized_code_docs)
+        self.bm25_both = BM25Okapi(tokenized_text_docs +
+                                   tokenized_code_docs)
         self._save_bm25_cache()
 
     def _is_cached_files_exist(self) -> bool:
-            return (Path("data/processed/bm25_text_cache.pkl").exists() and
-                    Path("data/processed/bm25_code_cache.pkl").exists() and
-                    Path("data/processed/bm25_both_cache.pkl").exists())
+        return (Path("data/processed/bm25_text_cache.pkl").exists() and
+                Path("data/processed/bm25_code_cache.pkl").exists() and
+                Path("data/processed/bm25_both_cache.pkl").exists() and
+                Path("data/processed/doc_documents.json").exists() and
+                Path("data/processed/code_documents.json").exists())
 
-    def _remove_cache_files(self)-> None:
+    def _remove_cache_files(self) -> None:
         """remove the cache if its curapted or something went wrong."""
+        try:
+            Path("data/processed/doc_documents.json").unlink()
+        except Exception:
+            pass
+        try:
+            Path("data/processed/code_documents.json").unlink()
+        except Exception:
+            pass
         try:
             Path("data/processed/bm25_text_cache.pkl").unlink()
         except Exception:
@@ -138,7 +155,7 @@ class BM25Searcher:
         except Exception:
             pass
         try:
-            Path("data/processed/bm25_code_cache.pkl").unlink()
+            Path("data/processed/bm25_both_cache.pkl").unlink()
         except Exception:
             pass
 
@@ -147,44 +164,53 @@ class BM25Searcher:
             print("bm25 cache dosn't exists! run index to create cache.")
             exit(1)
 
+        def _cache_curapted() -> None:
+            print("Error: the cache is corupted"
+                  "run index to create new cache.")
+            self._remove_cache_files()
+            exit(1)
+
+        with open("data/processed/doc_documents.json", "r") as file:
+            try:
+                self.text_documents = json.load(file)
+            except Exception:
+                _cache_curapted()
+        with open("data/processed/code_documents.json", "r") as file:
+            try:
+                self.code_documents = json.load(file)
+            except Exception:
+                _cache_curapted()
+
         with open("data/processed/bm25_text_cache.pkl", "rb") as file:
             try:
                 cached = pickle.load(file)
                 self.bm25_text = cached["bm25"]
-                self.text_documents = cached["text_documents"]
                 self.doc_chunks = cached["doc_chunks"]
             except Exception:
-                print("Error: the cache is corupted"
-                      "run index to create new cache.")
-                self._remove_cache_files()
-                exit(1)
-
+                _cache_curapted()
         with open("data/processed/bm25_code_cache.pkl", "rb") as file:
             try:
                 cached = pickle.load(file)
                 self.bm25_code = cached["bm25"]
-                self.code_documents = cached["code_documents"]
                 self.code_chunks = cached["code_chunks"]
             except Exception:
-                print("Error: the cache is corupted"
-                      "run index to create new cache.")
-                self._remove_cache_files()
-                exit(1)
+                _cache_curapted()
         with open("data/processed/bm25_both_cache.pkl", "rb") as file:
             try:
                 cached = pickle.load(file)
                 self.bm25_both = cached["bm25"]
                 self.both_chunks = cached["both_chunks"]
             except Exception:
-                print("Error: the cache is corupted"
-                      "run index to create new cache.")
-                self._remove_cache_files()
-                exit(1)
+                _cache_curapted()
 
     def query(self, query: str, type_flag: str = "") -> list[dict]:
         if self.text_documents is None or self.code_documents is None:
             print("there is no documents yet to call query!")
-            sys.exit(1)
+            exit(1)
+        if not self.bm25_text or not self.bm25_code or not self.bm25_both:
+            print("the cache did not upload yet,"
+                  " call load_bm25_cache() before you query.")
+            exit(1)
 
         if type_flag == "doc":
             scores = self.bm25_text.get_scores(
@@ -205,7 +231,7 @@ class BM25Searcher:
             key=lambda i: scores[i],
             reverse=True)[:self.top_k]
 
-        code_results = []
+        query_results = []
         for index in top_indexes:
-            code_results.append(documents[index])
-        return code_results
+            query_results.append(documents[index])
+        return query_results

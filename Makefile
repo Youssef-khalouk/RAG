@@ -52,24 +52,11 @@ run_llm:
 index:
 	uv run python -m src index  $(MAX_CHUNK_SIZE)
 
+search:
+	uv run python -m src search $(K) --query "What HTTP endpoint is used to dynamically load a LoRA adapter in vLLM?"
 
-search_public_doc:
-	uv run python -m src search $(K) --query "what is http?"
-search_public_code:
-	uv run python -m src search $(K) --query "how to create a class in python?"
-search_private_doc:
-	uv run python -m src search $(K) --query "what is the capital of France?"
-search_private_code:
-	uv run python -m src search $(K) --query "how to sort a list in python?"
-
-search_content_public_doc:
+search_content:
 	uv run python -m src search_content $(K) --query "what is API documentation for vLLM's configuration classes?"
-search_content_public_code:
-	uv run python -m src search_content $(K) --query "how to create a class in python?"
-search_content_private_doc:
-	uv run python -m src search_content $(K) --query "what is the capital of France?"
-search_content_private_code:
-	uv run python -m src search_content $(K) --query "how to sort a list in python?"
 
 search_dataset_public_doc:
 	uv run python -m src search_dataset  $(OUTPUT_FILE) $(K) --dataset_path=$(PUBLIC_DOC_PATH)
@@ -80,6 +67,8 @@ search_dataset_private_doc:
 search_dataset_private_code:
 	uv run python -m src search_dataset $(OUTPUT_FILE) $(K) --dataset_path=$(PRIVATE_CODE_PATH)
 
+answer:
+	uv run python -m src answer --query="What HTTP endpoint is used to dynamically load a LoRA adapter in vLLM?" --k=10
 
 answer_dataset_public_doc:
 	uv run python -m src answer_dataset --student_search_results_path="data/output.json" --save_directory="data/answer_dataset_results.json"
@@ -102,10 +91,10 @@ moulinette_private_doc:
 moulinette_private_code:
 	$(MOULINETTE) "data/output.json" $(PRIVATE_ANSWERD_CODE) $(M_PARAMETERS)
 
-public_doc: run_public_doc moulinette_public_doc
-public_code: run_public_code moulinette_public_code
-private_doc: run_private_doc moulinette_private_doc
-private_code: run_private_code moulinette_private_code
+# public_doc: run_public_doc moulinette_public_doc
+# public_code: run_public_code moulinette_public_code
+# private_doc: run_private_doc moulinette_private_doc
+# private_code: run_private_code moulinette_private_code
 
 download:
 	mkdir -p data

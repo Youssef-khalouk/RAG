@@ -4,7 +4,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter, Language
 import json
 import os
 from datetime import datetime
-from .process import Process
+# from .process import Process
 
 
 class UploadDir:
@@ -73,16 +73,12 @@ class UploadDir:
         }
         chunks = []
         for i, doc in enumerate(docs):
-            text = f"{path_info}\n{doc.page_content}"
-            if path.endswith(".py"):
-                processed_text = Process.preprocess_code(text)
-            else:
-                processed_text = Process.preprocess_doc(text)
             start = doc.metadata["start_index"]
             end = start + len(doc.page_content)
             document = {
-                "chunk": i,  # "text": text,
-                "processed_text": processed_text,
+                "chunk": i,
+                "path_tokens": path_info,
+                "text": doc.page_content,
                 "start_index": start,
                 "end_index": end
             }
