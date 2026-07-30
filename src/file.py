@@ -1,24 +1,12 @@
-import ast
+from tqdm import tqdm
+import time
 
-with open("bm25searcher.py", "r") as file:
-    source = file.read()
 
-# tree = ast.parse(source)
+files = ["a.py", "b.py", "c.md"]
 
-# for node in tree.body:
-#     # print(type(node).__name__)
-#     code = ast.get_source_segment(source, node)
-#     print(code)
+for f in tqdm(files, desc="Chunking", unit="file"):
+    time.sleep(1)
 
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-splitter = RecursiveCharacterTextSplitter(
-    chunk_size=250,
-    chunk_overlap=20
-)
-
-chunks = splitter.split_text(source)
-
-for ch in chunks:
-    print("####################################################################")
-    print(ch)
+for i in tqdm(range(100)):
+    time.sleep(0.05)

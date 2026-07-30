@@ -9,12 +9,12 @@ PRIVATE_ANSWERD_DOC  = "data/datasets_private/private/AnsweredQuestions/dataset_
 PRIVATE_ANSWERD_CODE = "data/datasets_private/private/AnsweredQuestions/dataset_code_private.json"
 
 MOULINETTE           = ./data/moulinette/moulinette-ubuntu evaluate_student_search_results
-OUTPUT_FILE          = --save_directory "data/output.json"
-K                    = --k 10
-MAX_CHUNK_SIZE       = --max_chunk_size 2000
-M_PARAMETERS         = $(K) --max_context_length 2000
-P_PARAMETERS         = $(OUTPUT_FILE) $(K) $(MAX_CHUNK_SIZE)
-
+DATASET_OUTPUT       = data/output.json
+ANSWERD_DATASET		 = data/answer_dataset_results.json
+K                   ?= 10
+MAX_CHUNK_SIZE      ?= 2000
+M_PARAMETERS         = --k $(K) --max_context_length $(MAX_CHUNK_SIZE)
+QUERY               ?= What HTTP endpoint is used to dynamically load a LoRA adapter in vLLM?
 
 ifeq ($(OS),Windows_NT)
     # Windows
@@ -46,55 +46,43 @@ install:
 run:
 	uv run python -m src
 
-run_llm:
-	uv run python -m src LLM
-
 index:
-	uv run python -m src index  $(MAX_CHUNK_SIZE)
+	uv run python -m src index  --max_chunk_size $(MAX_CHUNK_SIZE)
 
 search:
-	uv run python -m src search $(K) --query "What HTTP endpoint is used to dynamically load a LoRA adapter in vLLM?"
+	uv run python -m src search --k $(K) --query "$(QUERY)"
 
 search_content:
-	uv run python -m src search_content $(K) --query "what is API documentation for vLLM's configuration classes?"
+	uv run python -m src search_content --k $(K) --query "what is API documentation for vLLM's configuration classes?"
 
 search_dataset_public_doc:
-	uv run python -m src search_dataset  $(OUTPUT_FILE) $(K) --dataset_path=$(PUBLIC_DOC_PATH)
+	uv run python -m src search_dataset  --save_directory $(DATASET_OUTPUT) --k $(K) --dataset_path=$(PUBLIC_DOC_PATH)
 search_dataset_public_code:
-	uv run python -m src search_dataset $(OUTPUT_FILE) $(K) --dataset_path=$(PUBLIC_CODE_PATH)
+	uv run python -m src search_dataset --save_directory $(DATASET_OUTPUT) --k $(K) --dataset_path=$(PUBLIC_CODE_PATH)
 search_dataset_private_doc:
-	uv run python -m src search_dataset $(OUTPUT_FILE) $(K) --dataset_path=$(PRIVATE_DOC_PATH)
+	uv run python -m src search_dataset --save_directory $(DATASET_OUTPUT) --k $(K) --dataset_path=$(PRIVATE_DOC_PATH)
 search_dataset_private_code:
-	uv run python -m src search_dataset $(OUTPUT_FILE) $(K) --dataset_path=$(PRIVATE_CODE_PATH)
+	uv run python -m src search_dataset --save_directory $(DATASET_OUTPUT) --k $(K) --dataset_path=$(PRIVATE_CODE_PATH)
+
 
 answer:
-	uv run python -m src answer --query="What HTTP endpoint is used to dynamically load a LoRA adapter in vLLM?" --k=10
+	uv run python -m src answer --query "$(QUERY)" --k $(K)
 
-answer_dataset_public_doc:
-	uv run python -m src answer_dataset --student_search_results_path="data/output.json" --save_directory="data/answer_dataset_results.json"
-answer_dataset_public_code:
-	uv run python -m src answer_dataset --student_search_results_path="data/output.json" --save_directory="data/answer_dataset_results.json"
-answer_dataset_private_doc:
-	uv run python -m src answer_dataset --student_search_results_path="data/output.json" --save_directory="data/answer_dataset_results.json"
-answer_dataset_private_code:
-	uv run python -m src answer_dataset --student_search_results_path="data/output.json" --save_directory="data/answer_dataset_results.json"
+answer_dataset:
+	uv run python -m src answer_dataset --student_search_results_path $(DATASET_OUTPUT) --save_directory $(ANSWERD_DATASET)
 
 
 moulinette:
 	$(MOULINETTE)
 moulinette_public_doc:
-	$(MOULINETTE)  "data/output.json" $(PUBLIC_ANSWERD_DOC) $(M_PARAMETERS)
+	$(MOULINETTE) $(DATASET_OUTPUT) $(PUBLIC_ANSWERD_DOC) $(M_PARAMETERS)
 moulinette_public_code:
-	$(MOULINETTE) "data/output.json" $(PUBLIC_ANSWERD_CODE) $(M_PARAMETERS)
+	$(MOULINETTE) $(DATASET_OUTPUT) $(PUBLIC_ANSWERD_CODE) $(M_PARAMETERS)
 moulinette_private_doc:
-	$(MOULINETTE) "data/output.json" $(PRIVATE_ANSWERD_DOC) $(M_PARAMETERS)
+	$(MOULINETTE) $(DATASET_OUTPUT) $(PRIVATE_ANSWERD_DOC) $(M_PARAMETERS)
 moulinette_private_code:
-	$(MOULINETTE) "data/output.json" $(PRIVATE_ANSWERD_CODE) $(M_PARAMETERS)
+	$(MOULINETTE) $(DATASET_OUTPUT) $(PRIVATE_ANSWERD_CODE) $(M_PARAMETERS)
 
-# public_doc: run_public_doc moulinette_public_doc
-# public_code: run_public_code moulinette_public_code
-# private_doc: run_private_doc moulinette_private_doc
-# private_code: run_private_code moulinette_private_code
 
 download:
 	mkdir -p data
@@ -128,7 +116,11 @@ clean:
 	find . -type d -name ".mypy_cache" -exec rm -rf {} +
 	find . -type d -name ".pytest_cache" -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
-	rm -rf uv.lock
+
+clean_cache:
+	rm -rf data/processed
+	rm -f @(DATASET_OUTPUT)
+	rm -f @(ANSWERD_DATASET)
 
 lint:
 	flake8 src
@@ -142,51 +134,57 @@ help:
 	@echo "Usage: make <target>"
 	@echo
 	@echo "Setup:"
-	@echo "  install              Install project dependencies"
-	@echo "  download             Download datasets, vLLM, and moulinette"
+	@echo "  install                      Install project dependencies"
+	@echo "  download                     Download datasets, vLLM, and moulinette"
 	@echo
-	@echo "Run:"
-	@echo "  run                  Run application with default parameters"
-	@echo "  run_public_doc       Run on public documentation dataset"
-	@echo "  run_public_code      Run on public code dataset"
-	@echo "  run_private_doc      Run on private documentation dataset"
-	@echo "  run_private_code     Run on private code dataset"
+	@echo "Indexing:"
+	@echo "  index                        Build the index from data/raw/"
 	@echo
-	@echo "Evaluation:"
-	@echo "  moulinette_public_doc     Evaluate public documentation results"
-	@echo "  moulinette_public_code    Evaluate public code results"
-	@echo "  moulinette_private_doc    Evaluate private documentation results"
-	@echo "  moulinette_private_code   Evaluate private code results"
+	@echo "Search:"
+	@echo "  search                       Run a single query search"
+	@echo "  search_content                Run a single content search"
+	@echo "  search_dataset_public_doc    Search over the public docs dataset"
+	@echo "  search_dataset_public_code   Search over the public code dataset"
+	@echo "  search_dataset_private_doc   Search over the private docs dataset"
+	@echo "  search_dataset_private_code  Search over the private code dataset"
 	@echo
-	@echo "Combined run + evaluation:"
-	@echo "  public_doc           Run + evaluate public documentation"
-	@echo "  public_code          Run + evaluate public code"
-	@echo "  private_doc          Run + evaluate private documentation"
-	@echo "  private_code         Run + evaluate private code"
+	@echo "Answer generation:"
+	@echo "  answer                       Answer a single query"
+	@echo "  answer_dataset               Generate answers from the last search_dataset output"
+	@echo
+	@echo "Evaluation (moulinette):"
+	@echo "  moulinette_public_doc        Evaluate public documentation results"
+	@echo "  moulinette_public_code       Evaluate public code results"
+	@echo "  moulinette_private_doc       Evaluate private documentation results"
+	@echo "  moulinette_private_code      Evaluate private code results"
 	@echo
 	@echo "Development:"
-	@echo "  debug                Run application with pdb"
-	@echo "  lint                 Run flake8 and mypy checks"
-	@echo "  clean                Remove caches and generated files"
+	@echo "  run                          Run the application"
+	@echo "  debug                        Run application with pdb"
+	@echo "  lint                         Run flake8 and mypy checks"
+	@echo "  clean                        Remove caches (__pycache__, .mypy_cache, etc.)"
+	@echo "  clean_cache                  Remove generated index and output files"
 
 .PHONY: \
-help \
-install \
-run \
-run_public_doc \
-run_public_code \
-run_private_doc \
-run_private_code \
-moulinette \
-moulinette_public_doc \
-moulinette_public_code \
-moulinette_private_doc \
-moulinette_private_code \
-public_doc \
-public_code \
-private_doc \
-private_code \
-download \
-debug \
-clean \
-lint
+	help \
+	install \
+	download \
+	index \
+	run \
+	search \
+	search_content \
+	search_dataset_public_doc \
+	search_dataset_public_code \
+	search_dataset_private_doc \
+	search_dataset_private_code \
+	answer \
+	answer_dataset \
+	moulinette \
+	moulinette_public_doc \
+	moulinette_public_code \
+	moulinette_private_doc \
+	moulinette_private_code \
+	debug \
+	clean \
+	clean_cache \
+	lint

@@ -1,10 +1,15 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM
+from functools import cache
+from typing import Any
 
 
 class LLM:
     model_name = "Qwen/Qwen3-0.6B"
     model = None
     tokenizer = None
+    max_context_characters: int = 3000
+    _content = ("You answer questions using only the provided context."
+                "\nIf the answer is not in the context, say you don't know.")
 
     @staticmethod
     def _init_model() -> None:
@@ -18,20 +23,44 @@ class LLM:
         )
 
     @staticmethod
+    def get_context(chunks: list[Any] = []) -> str:
+        context = ""
+        if chunks == []:
+            return context
+        if isinstance(chunks[0], dict):
+            for doc in chunks:
+                context += doc["text"] + "\n\n"
+                if len(context) >= LLM.max_context_characters:
+                    break
+        elif isinstance(chunks[0], tuple):
+            for doc in chunks:
+                context += doc[0] + "\n\n"
+                if len(context) >= LLM.max_context_characters:
+                    break
+        return context
+
+    @staticmethod
+    def max_tokens() -> int:
+        if not LLM.model:
+            LLM._init_model()
+
+        return LLM.model.config.max_position_embeddings
+
+    @cache
+    @staticmethod
     def ask(question: str, context: str = "") -> str:
         if not LLM.model:
             LLM._init_model()
         message = [
             {
                 "role": "system",
-                "content": """You answer questions using only the provided context.\nIf the answer is not in the context, say you don't know."""
+                "content": LLM._content
             },
             {
                 "role": "user",
                 "content": f"Context:\n{context}\n\nQuestion:\n{question}"
             }
         ]
-
         text = LLM.tokenizer.apply_chat_template(
             message,
             tokenize=False,

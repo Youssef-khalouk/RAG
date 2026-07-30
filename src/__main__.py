@@ -1,4 +1,3 @@
-from numpy import array
 from .upload_files import UploadDir
 from .bm25searcher import BM25Searcher
 from pathlib import Path
@@ -11,6 +10,7 @@ from .validaters import (RagDataset,
                          MinimalAnswer,
                          StudentSearchResultsAndAnswer)
 from .LLM import LLM
+from tqdm import tqdm
 
 
 def index(max_chunk_size: int = 2000) -> None:
@@ -98,21 +98,9 @@ def answer(query: str, k: int = 10) -> None:
     searcher = BM25Searcher()
     searcher.set_top_k(k)
     searcher.load_bm25_cache()
-    documents = searcher.query(query)
 
-    # here i need to ask the llm model and print the answer.
-    context = ""
-    # count = 0
-    for d in documents:
-        context += "\n" + d[0]
-        # count += 1
-        # if count == 2:
-        #     break
-    # =========================================
-    # with open("file1.txt", "w") as file:
-    #     file.write(context)
-    # =========================================
-
+    chunks = searcher.query(query)
+    context = LLM.get_context(chunks)
     the_answer = LLM.ask(question=query, context=context)
     print(f"Question: {query}\nAnswer: {the_answer}")
 
@@ -131,17 +119,19 @@ def answer_dataset(student_search_results_path: str,
         except Exception as e:
             print(f"Error: {e}")
             exit(1)
-
+    LLM._init_model()  # initalize the LLM model before we start
     files_chunks = {}
-    for s_result in search_results.search_results:
+    print("Loading chunks:")
+    for s_result in tqdm(search_results.search_results,
+                         desc="Uploading chunks", unit="chunk"):
         content = []
         for chunk in s_result.retrieved_sources:
             with open(chunk.file_path, "r", encoding="utf-8") as file:
                 text = file.read()
-                text_chunk = text[chunk.first_character_index:
+                text_chunk = text[chunk.first_character_index + 1:
                                   chunk.last_character_index]
             text_pos = f" [{chunk.first_character_index},"
-            text_pos += f" {chunk.last_character_index}]"
+            text_pos += f" {chunk.last_character_index}]:"
             text_path_info = chunk.file_path + text_pos
             content.append({
                 "text": text_path_info + "\n" + text_chunk
@@ -149,26 +139,16 @@ def answer_dataset(student_search_results_path: str,
         files_chunks[s_result.question_id] = content
 
     answer_results: list[MinimalAnswer] = []
-    for q in search_results.search_results:
+    print("Start generating answer_dataset_results.json:")
+    for q in tqdm(search_results.search_results,
+                  desc="Processing", unit="Question"):
         # asking the llm model should be here
-        # and the answer in the variable 'answer'
         chunks = files_chunks.get(q.question_id, None)
-        print(f"size is {len(chunks)}.\n\n")
         if chunks is None:
             print(f"this question '{q.question}', "
                   "is not in the student_search_results.")
             continue
-        context = ""
-        # count = 0
-        for doc in chunks:
-            context += "\n" + doc["text"]
-            # count += 1git
-            # if count == 2:
-            #     break
-        # print(context)
-        # with open("file2.txt", "w") as file:
-        #     file.write(context)
-        # break
+        context = LLM.get_context(chunks)
         answer = LLM.ask(q.question, context=context)
 
         answer_result = MinimalAnswer(
@@ -185,14 +165,14 @@ def answer_dataset(student_search_results_path: str,
             file.write(output.model_dump_json(indent=4))
 
 
-def evaluate() -> None:
+def evaluate(student_search_results_path: str, dataset_path: str) -> None:
+    """Compute recall@k against a ground-truth dataset, for local iteration.
+
+    Args:
+        student_search_results_path: Path to your StudentSearchResults JSON.
+        dataset_path: Path to the ground-truth AnsweredQuestions dataset JSON.
+    """
     pass
-
-
-def llm() -> None:
-    from .LLM import run_llm
-    run_llm()
-    print("\ndone.")
 
 
 if __name__ == "__main__":
@@ -205,5 +185,4 @@ if __name__ == "__main__":
         "answer": answer,
         "answer_dataset": answer_dataset,
         "evaluate": evaluate,
-        "LLM": llm,
     })

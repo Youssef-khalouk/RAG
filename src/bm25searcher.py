@@ -6,6 +6,8 @@ import pickle
 from pathlib import Path
 import os
 import json
+from functools import cache
+from tqdm import tqdm
 
 
 class BM25Searcher:
@@ -21,24 +23,29 @@ class BM25Searcher:
         self.top_k: int = 10
 
     def _save_bm25_cache(self) -> None:
-        os.makedirs("data/processed", exist_ok=True)
-        with open("data/processed/bm25_text_cache.pkl", "wb") as f:
-            pickle.dump({
+        pkls = {
+            "data/processed/bm25_text_cache.pkl":
+            {
                 "bm25": self.bm25_text,
                 "doc_chunks": self.doc_chunks
-                }, f)
-        with open("data/processed/bm25_code_cache.pkl", "wb") as f:
-            pickle.dump({
+            },
+            "data/processed/bm25_code_cache.pkl":
+            {
                 "bm25": self.bm25_code,
-                "code_chunks": self.code_chunks
-                }, f)
-        with open("data/processed/bm25_both_cache.pkl", "wb") as f:
-            pickle.dump({
+                "code_chunks": self.code_chunks,
+            },
+            "data/processed/bm25_both_cache.pkl":
+            {
                 "bm25": self.bm25_both,
                 "both_chunks": self.both_chunks
-                }, f)
-
-        print("bm25 cache saved successfully.")
+            }
+        }
+        os.makedirs("data/processed", exist_ok=True)
+        for path, content in tqdm(pkls.items(),
+                                  desc="Cacheing BM25",
+                                  unit="file"):
+            with open(path, "wb") as file:
+                pickle.dump(content, file)
 
     def set_top_k(self, size: int) -> None:
         if size <= 0:
@@ -94,8 +101,8 @@ class BM25Searcher:
         self.text_documents = documents_text
         self.code_documents = documents_code
 
-        tokenized_text_docs = []
-        tokenized_code_docs = []
+        tokenized_text = []
+        tokenized_code = []
         self.code_chunks = []
         self.doc_chunks = []
 
@@ -105,28 +112,33 @@ class BM25Searcher:
 
             for chunk in v["chunks"]:
                 text = chunk["path_tokens"] + chunk["text"]
-                tokenized_code_docs.append(Process.preprocess_code(text).split())
-                pos = f"[{chunk['start_index']}, {chunk['end_index']}]"
+                tokenized_code.append(Process.preprocess_code(text).split())
+                pos = f"[{chunk['start_index']}, {chunk['end_index']}]:"
                 text = k + f" {pos}\n" + chunk["text"]
-                pos = f"[{chunk['start_index']}, {chunk['end_index']}]"
-                self.code_chunks.append((text, k, chunk["chunk"], pos))
+                self.code_chunks.append((text, k, chunk["chunk"]))
 
         for k, v in documents_text.items():
             if k == "k":
                 continue
             for chunk in v["chunks"]:
+                ch = chunk["text"]
+                if ch.startswith(".\n\n"):
+                    ch = ch[3:]
+                elif ch.startswith(".\n"):
+                    ch = ch[2:]
+                elif ch.startswith("."):
+                    ch = ch[1:]
                 text = chunk["path_tokens"] + chunk["text"]
-                tokenized_text_docs.append(Process.preprocess_doc(text).split())
-                pos = f"[{chunk['start_index']}, {chunk['end_index']}]"
-                text = k + f" {pos}\n" + chunk["text"]
+                tokenized_text.append(Process.preprocess_doc(text).split())
+                pos = f"[{chunk['start_index']}, {chunk['end_index']}]:"
+                text = k + f" {pos}\n" + ch
                 self.doc_chunks.append((text, k, chunk["chunk"]))
 
         self.both_chunks = self.doc_chunks + self.code_chunks
 
-        self.bm25_text = BM25Okapi(tokenized_text_docs)
-        self.bm25_code = BM25Okapi(tokenized_code_docs)
-        self.bm25_both = BM25Okapi(tokenized_text_docs +
-                                   tokenized_code_docs)
+        self.bm25_text = BM25Okapi(tokenized_text)
+        self.bm25_code = BM25Okapi(tokenized_code)
+        self.bm25_both = BM25Okapi(tokenized_text + tokenized_code)
         self._save_bm25_cache()
 
     def _is_cached_files_exist(self) -> bool:
@@ -165,8 +177,8 @@ class BM25Searcher:
             exit(1)
 
         def _cache_curapted() -> None:
-            print("Error: the cache is corupted"
-                  "run index to create new cache.")
+            print("Error: the cache is corupted, "
+                  "run 'make index' to create new cache.")
             self._remove_cache_files()
             exit(1)
 
@@ -203,6 +215,7 @@ class BM25Searcher:
             except Exception:
                 _cache_curapted()
 
+    @cache
     def query(self, query: str, type_flag: str = "") -> list[dict]:
         if self.text_documents is None or self.code_documents is None:
             print("there is no documents yet to call query!")

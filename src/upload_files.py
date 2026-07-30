@@ -4,7 +4,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter, Language
 import json
 import os
 from datetime import datetime
-# from .process import Process
+from tqdm import tqdm
 
 
 class UploadDir:
@@ -90,43 +90,31 @@ class UploadDir:
             with open("data/processed/doc_documents.json", "r") as file:
                 try:
                     self.text_documents = json.load(file)
-                    # print("text documents loaded seccessfuly.")
                 except Exception:
-                    pass
+                    self.text_documents = {}
         if Path("data/processed/code_documents.json").exists():
             with open("data/processed/code_documents.json", "r") as file:
                 try:
                     self.code_documents = json.load(file)
-                    # print("code documents loaded seccessfuly.")
-                except Exception as error:
-                    print(f"Error loading code documents: {error}")
+                except Exception:
+                    self.code_documents = {}
         # after loading the json files, we need to set the chunk size
         # to the one in the json files if it exists
         if use_file_chunk_size:
-            self._chunk_size = self.text_documents.get("k", self._chunk_size)
+            k = self.text_documents.get("k", None)
+            if k is None:
+                k = self.code_documents.get("k", None)
+            if k:
+                self._chunk_size = k
 
-    def _load_files(self) -> bool:
-        # open all the files and save the content as chunks
-        is_any_file_processed = False
-        if self.text_documents.get("k", 0) != self._chunk_size:
-            # if the chunk size has changed, we need to reprocess all files
-            self.text_documents = {}
-            self.code_documents = {}
-        for path in self.files_path:
-            l_u_time = str(datetime.fromtimestamp(Path(path).stat().st_mtime))
-            if path.endswith(".py"):
-                documents = self.code_documents
-            else:
-                documents = self.text_documents
-            if path in documents:
-                if (documents[path]["last_updated_time"] == l_u_time):
-                    continue
+    def _load_files(self, paths: list[str] = []) -> None:
+        # open the files and save the content as chunks
+        if paths == []:
+            print("All files alrdy indexd.")
+            return
+        for path in tqdm(paths, desc="indexing", unit="file"):
             with open(path, "r", encoding="utf-8") as file:
                 self._chunk_file_and_save(path, file.read())
-            is_any_file_processed = True
-            print(f"File '{path}' processed and saved successfully.")
-
-        return is_any_file_processed
 
     def _save_documents(self) -> None:
         os.makedirs("data/processed", exist_ok=True)
@@ -134,14 +122,21 @@ class UploadDir:
         self.code_documents["k"] = self._chunk_size
         with open("data/processed/doc_documents.json", "w") as file:
             json.dump(self.text_documents, file, indent=4)
-            # print("text documents saved seccessfuly.")
         with open("data/processed/code_documents.json", "w") as file:
             json.dump(self.code_documents, file, indent=4)
-            # print("code documents saved seccessfuly.")
 
     def upload(self, use_file_chunk_size: bool = False) -> bool:
         if self.directory == "":
             return False
+
+        # load the json files if they exist
+        self._open_json_files(use_file_chunk_size)
+        # if the chunk size has changed, we need to reprocess all files
+        if self.text_documents.get("k", -1) != self._chunk_size:
+            self.text_documents = {}
+        if self.code_documents.get("k", -1) != self._chunk_size:
+            self.code_documents = {}
+        changed_files = []
 
         def get_dir_content(path: str) -> None:
             directory = Path(path)
@@ -150,13 +145,18 @@ class UploadDir:
                     get_dir_content(str(item))
                 elif (item.suffix in [".py", ".md", ".txt"]):
                     self.files_path.append(str(item))
+                    l_time = str(datetime.fromtimestamp(item.stat().st_mtime))
+                    if item.suffix == ".py":
+                        doc = self.code_documents.get(str(item), None)
+                    else:
+                        doc = self.text_documents.get(str(item), None)
+                    if (doc is None or doc["last_updated_time"] != l_time):
+                        changed_files.append(str(item))
         get_dir_content(self.directory)
 
-        # load the json files if they exist
-        self._open_json_files(use_file_chunk_size)
-
-        processed = self._load_files()
-        if processed:
+        self._load_files(changed_files)
+        if changed_files != []:
             # save the documents if any file was processed
             self._save_documents()
-        return processed
+            return True
+        return False

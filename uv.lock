@@ -656,6 +656,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "rank-bm25" },
     { name = "torch" },
+    { name = "tqdm" },
     { name = "transformers" },
 ]
 
@@ -671,6 +672,7 @@ requires-dist = [
     { name = "pydantic" },
     { name = "rank-bm25" },
     { name = "torch", specifier = ">=2.0.0" },
+    { name = "tqdm" },
     { name = "transformers", specifier = ">=4.40.0" },
 ]
 
