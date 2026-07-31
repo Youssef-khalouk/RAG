@@ -71,11 +71,16 @@ answer:
 answer_dataset:
 	uv run python -m src answer_dataset --student_search_results_path $(DATASET_OUTPUT) --save_directory $(ANSWERD_DATASET)
 
-evaluate:
+evaluate_public_doc:
 	uv run python -m src evaluate $(DATASET_OUTPUT) $(PUBLIC_ANSWERD_DOC)
+evaluate_public_code:
+	uv run python -m src evaluate $(DATASET_OUTPUT) $(PUBLIC_ANSWERD_CODE)
+evaluate_private_doc:
+	uv run python -m src evaluate $(DATASET_OUTPUT) $(PRIVATE_ANSWERD_DOC)
+evaluate_private_code:
+	uv run python -m src evaluate $(DATASET_OUTPUT) $(PRIVATE_ANSWERD_CODE)
 
-moulinette:
-	$(MOULINETTE)
+
 moulinette_public_doc:
 	$(MOULINETTE) $(DATASET_OUTPUT) $(PUBLIC_ANSWERD_DOC) $(M_PARAMETERS)
 moulinette_public_code:

@@ -219,22 +219,25 @@ def evaluate(student_search_results_path: str, dataset_path: str) -> None:
             print(f"the question '{doc.question_id}' "
                   "did not found in dataset.")
             exit(1)
-
         recall1 += any(is_it_in(s) for s in doc.retrieved_sources[:1])
         recall3 += any(is_it_in(s) for s in doc.retrieved_sources[:3])
         recall5 += any(is_it_in(s) for s in doc.retrieved_sources[:5])
         recall10 += any(is_it_in(s) for s in doc.retrieved_sources[:10])
 
-    recall1 = recall1/len(results)
-    recall3 = recall3/len(results)
-    recall5 = recall5/len(results)
-    recall10 = recall10/len(results)
+    recall1 = recall1/len(dataset)
+    recall3 = recall3/len(dataset)
+    recall5 = recall5/len(dataset)
+    recall10 = recall10/len(dataset)
 
-    print(f"📊 Questions evaluated: {len(results)}")
-    print(f"📈 Recall@1: {recall1} ({recall1 * 100}%)")
-    print(f"📈 Recall@3: {recall3} ({recall3 * 100}%)")
-    print(f"📈 Recall@5: {recall5} ({recall5 * 100}%)")
-    print(f"📈 Recall@10: {recall10} ({recall10 * 100}%)")
+    print(f"\nTotal number of questions with sources: {len(dataset)}")
+    print(f"Total number of questions with student sources: {len(results)}\n")
+
+    print("🎯 Evaluation Results\n=======================================")
+    print(f"📊 Questions evaluated: {len(dataset)}")
+    print(f"📈 Recall@1: {recall1} ({recall1 * 100:.1f}%)")
+    print(f"📈 Recall@3: {recall3} ({recall3 * 100:.1f}%)")
+    print(f"📈 Recall@5: {recall5} ({recall5 * 100:.1f}%)")
+    print(f"📈 Recall@10: {recall10} ({recall10 * 100:.1f}%)")
 
 
 if __name__ == "__main__":
