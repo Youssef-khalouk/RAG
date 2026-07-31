@@ -42,17 +42,17 @@ def search_content(query: str, k: int = 10) -> None:
     searcher = BM25Searcher()
     searcher.set_top_k(k)
     searcher.load_bm25_cache()
-    documents = searcher.query(query)
-    print_data(query, documents, searcher)
+    chunks = searcher.query(query)
+    print_data(query, chunks, searcher)
 
 
 def search_dataset(dataset_path: str,
                    k: int = 10,
                    save_directory: str = "data/output.json") -> None:
-    searcher = BM25Searcher()
-    searcher.set_top_k(k)
-    searcher.load_bm25_cache()
 
+    if not Path(dataset_path).exists():
+        print(f"Error: dataset_path '{dataset_path}' dosn't exist.")
+        exit(1)
     with open(dataset_path, "r", encoding="utf-8") as file:
         try:
             dictionary = RagDataset.model_validate_json(file.read())
@@ -60,6 +60,10 @@ def search_dataset(dataset_path: str,
             print(f"Error: {e}")
             exit(1)
             return
+
+    searcher = BM25Searcher()
+    searcher.set_top_k(k)
+    searcher.load_bm25_cache()
 
     path = Path(dataset_path)
     type = "both"
@@ -123,18 +127,18 @@ def answer_dataset(student_search_results_path: str,
     files_chunks = {}
     print("Loading chunks:")
     for s_result in tqdm(search_results.search_results,
-                         desc="Uploading chunks", unit="chunk"):
+                         desc="Uploading Questions data", unit="Question"):
         content = []
         for chunk in s_result.retrieved_sources:
             with open(chunk.file_path, "r", encoding="utf-8") as file:
                 text = file.read()
                 text_chunk = text[chunk.first_character_index + 1:
                                   chunk.last_character_index]
-            text_pos = f" [{chunk.first_character_index},"
-            text_pos += f" {chunk.last_character_index}]:"
+            text_pos = (f" [{chunk.first_character_index},"
+                        f" {chunk.last_character_index}]:")
             text_path_info = chunk.file_path + text_pos
             content.append({
-                "text": text_path_info + "\n" + text_chunk
+                "text": text_path_info + "\n" + text_chunk.strip()
             })
         files_chunks[s_result.question_id] = content
 
@@ -166,13 +170,71 @@ def answer_dataset(student_search_results_path: str,
 
 
 def evaluate(student_search_results_path: str, dataset_path: str) -> None:
-    """Compute recall@k against a ground-truth dataset, for local iteration.
 
-    Args:
-        student_search_results_path: Path to your StudentSearchResults JSON.
-        dataset_path: Path to the ground-truth AnsweredQuestions dataset JSON.
-    """
-    pass
+    if not Path(student_search_results_path).exists():
+        print(f"Error: file '{student_search_results_path}' not found.")
+        exit(1)
+    if not Path(dataset_path).exists():
+        print(f"Error: dataset_path '{dataset_path}' dosn't exist.")
+        exit(1)
+
+    with open(student_search_results_path, "r", encoding="utf-8") as file:
+        try:
+            search_results = StudentSearchResults.model_validate_json(
+                                                            file.read())
+        except Exception as e:
+            print(f"Error: {e}")
+            exit(1)
+    with open(dataset_path, "r", encoding="utf-8") as file:
+        try:
+            dictionary = RagDataset.model_validate_json(file.read())
+        except Exception as e:
+            print(f"Error: {e}")
+            exit(1)
+            return
+
+    def is_it_in(source) -> int:
+        dataset_source = item.sources[0]
+        if source.file_path == dataset_source.file_path:
+            source_s = source.first_character_index
+            source_e = source.last_character_index
+            dataset_s = dataset_source.first_character_index
+            dataset_e = dataset_source.last_character_index
+
+            intersection = max(0, min(source_e, dataset_e) - max(source_s, dataset_s))
+            union = max(source_e, dataset_e) - min(source_s, dataset_s)
+            iou = intersection / union if union > 0 else 0
+            if iou >= 0.05:
+                return 1
+        return 0
+
+    results = search_results.search_results
+    dataset = dictionary.rag_questions
+    recall1 = recall3 = recall5 = recall10 = 0
+
+    for doc in results:
+        item = next((x for x in dataset if x.question_id == doc.question_id),
+                    None)
+        if item is None:
+            print(f"the question '{doc.question_id}' "
+                  "did not found in dataset.")
+            exit(1)
+
+        recall1 += any(is_it_in(s) for s in doc.retrieved_sources[:1])
+        recall3 += any(is_it_in(s) for s in doc.retrieved_sources[:3])
+        recall5 += any(is_it_in(s) for s in doc.retrieved_sources[:5])
+        recall10 += any(is_it_in(s) for s in doc.retrieved_sources[:10])
+
+    recall1 = recall1/len(results)
+    recall3 = recall3/len(results)
+    recall5 = recall5/len(results)
+    recall10 = recall10/len(results)
+
+    print(f"📊 Questions evaluated: {len(results)}")
+    print(f"📈 Recall@1: {recall1} ({recall1 * 100}%)")
+    print(f"📈 Recall@3: {recall3} ({recall3 * 100}%)")
+    print(f"📈 Recall@5: {recall5} ({recall5 * 100}%)")
+    print(f"📈 Recall@10: {recall10} ({recall10 * 100}%)")
 
 
 if __name__ == "__main__":

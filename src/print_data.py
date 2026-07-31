@@ -56,13 +56,11 @@ STOP_WORDS = {
 }
 
 
-def print_data(query, documents, searcher=None) -> None:
-    for d in documents:
-        doc = searcher.get_document_content(d[1], d[2])
+def print_data(query, chunks, searcher=None) -> None:
+    for d in chunks:
         print(f"{Fore.YELLOW}\n\nQuestion: {query}{Style.RESET_ALL}")
-        print(f"{Fore.BLUE}path: {doc['file_path']} "
-              f"[chunk: {doc['first_character_index']}]{Style.RESET_ALL}")
-        text = doc["text"].replace("\n", "\n\t")
+        print(f"{Fore.BLUE}path: {d[1]} {d[3]}{Style.RESET_ALL}")
+        text = d[0].replace("\n", "\n\t")
         for q in query.split(" "):
             if q.lower() not in STOP_WORDS:
                 text = text.replace(q, f"{Fore.YELLOW}{q}{Fore.WHITE}")

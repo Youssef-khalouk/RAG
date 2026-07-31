@@ -9,7 +9,7 @@ PRIVATE_ANSWERD_DOC  = "data/datasets_private/private/AnsweredQuestions/dataset_
 PRIVATE_ANSWERD_CODE = "data/datasets_private/private/AnsweredQuestions/dataset_code_private.json"
 
 MOULINETTE           = ./data/moulinette/moulinette-ubuntu evaluate_student_search_results
-DATASET_OUTPUT       = data/output.json
+DATASET_OUTPUT       = data/dataset_output.json
 ANSWERD_DATASET		 = data/answer_dataset_results.json
 K                   ?= 10
 MAX_CHUNK_SIZE      ?= 2000
@@ -53,7 +53,7 @@ search:
 	uv run python -m src search --k $(K) --query "$(QUERY)"
 
 search_content:
-	uv run python -m src search_content --k $(K) --query "what is API documentation for vLLM's configuration classes?"
+	uv run python -m src search_content --k $(K) --query "$(QUERY)"
 
 search_dataset_public_doc:
 	uv run python -m src search_dataset  --save_directory $(DATASET_OUTPUT) --k $(K) --dataset_path=$(PUBLIC_DOC_PATH)
@@ -71,6 +71,8 @@ answer:
 answer_dataset:
 	uv run python -m src answer_dataset --student_search_results_path $(DATASET_OUTPUT) --save_directory $(ANSWERD_DATASET)
 
+evaluate:
+	uv run python -m src evaluate $(DATASET_OUTPUT) $(PUBLIC_ANSWERD_DOC)
 
 moulinette:
 	$(MOULINETTE)
@@ -119,8 +121,8 @@ clean:
 
 clean_cache:
 	rm -rf data/processed
-	rm -f @(DATASET_OUTPUT)
-	rm -f @(ANSWERD_DATASET)
+	rm -rf $(DATASET_OUTPUT)
+	rm -rf $(ANSWERD_DATASET)
 
 lint:
 	flake8 src

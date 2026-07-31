@@ -126,8 +126,9 @@ class UploadDir:
             json.dump(self.code_documents, file, indent=4)
 
     def upload(self, use_file_chunk_size: bool = False) -> bool:
-        if self.directory == "":
-            return False
+        if not Path(self.directory).exists():
+            print(f"Error: directory '{self.directory}' dons't exist?")
+            exit(1)
 
         # load the json files if they exist
         self._open_json_files(use_file_chunk_size)

@@ -54,6 +54,9 @@ class BM25Searcher:
         self.top_k = size
 
     def get_document_content(self, path: str, chunk: int) -> list[dict]:
+        if self.text_documents is None or self.code_documents is None:
+            print("there is no documents!")
+            exit(1)
         doc = self.text_documents.get(path, None)
         if doc is None:
             doc = self.code_documents.get(path, None)
@@ -68,6 +71,9 @@ class BM25Searcher:
         return d
 
     def get_document(self, path: str, chunk: int) -> dict | None:
+        if self.text_documents is None or self.code_documents is None:
+            print("there is no documents!")
+            exit(1)
         doc = self.text_documents.get(path, None)
         if doc is None:
             doc = self.code_documents.get(path, None)
@@ -115,24 +121,23 @@ class BM25Searcher:
                 tokenized_code.append(Process.preprocess_code(text).split())
                 pos = f"[{chunk['start_index']}, {chunk['end_index']}]:"
                 text = k + f" {pos}\n" + chunk["text"]
-                self.code_chunks.append((text, k, chunk["chunk"]))
+                self.code_chunks.append((text, k, chunk["chunk"], pos))
 
         for k, v in documents_text.items():
             if k == "k":
                 continue
             for chunk in v["chunks"]:
-                ch = chunk["text"]
-                if ch.startswith(".\n\n"):
-                    ch = ch[3:]
-                elif ch.startswith(".\n"):
-                    ch = ch[2:]
-                elif ch.startswith("."):
-                    ch = ch[1:]
+                good_text = (
+                    chunk["text"]
+                    .removeprefix(".\n\n")
+                    .removeprefix(".\n")
+                    .removeprefix(".")
+                )
                 text = chunk["path_tokens"] + chunk["text"]
                 tokenized_text.append(Process.preprocess_doc(text).split())
                 pos = f"[{chunk['start_index']}, {chunk['end_index']}]:"
-                text = k + f" {pos}\n" + ch
-                self.doc_chunks.append((text, k, chunk["chunk"]))
+                text = k + f" {pos}\n" + good_text
+                self.doc_chunks.append((text, k, chunk["chunk"], pos))
 
         self.both_chunks = self.doc_chunks + self.code_chunks
 
@@ -173,7 +178,8 @@ class BM25Searcher:
 
     def load_bm25_cache(self) -> None:
         if not self._is_cached_files_exist():
-            print("bm25 cache dosn't exists! run index to create cache.")
+            print("bm25 cache dosn't exists!"
+                  "\nrun 'make index' to create cache.")
             exit(1)
 
         def _cache_curapted() -> None:
@@ -217,9 +223,6 @@ class BM25Searcher:
 
     @cache
     def query(self, query: str, type_flag: str = "") -> list[dict]:
-        if self.text_documents is None or self.code_documents is None:
-            print("there is no documents yet to call query!")
-            exit(1)
         if not self.bm25_text or not self.bm25_code or not self.bm25_both:
             print("the cache did not upload yet,"
                   " call load_bm25_cache() before you query.")
