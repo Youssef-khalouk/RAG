@@ -16,6 +16,8 @@ dependencies = [
     "fire",
     "accelerate",
     "tqdm",
+    "fastapi",
+    "uvicorn",
 ]
 
 [build-system]

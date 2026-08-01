@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>RAG search</title>
+<style>
+   body {
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+    background: linear-gradient(160deg, #2f758f 0%, #172f3a 40%, #0a1011 100%);
+    background-attachment: fixed;
+    color: #e6efe9;
+    line-height: 1.6;
+    max-width: 800px;
+    margin: auto;
+    margin-top: 1%;
+  }
+  .project-info {
+    border: 1px solid #2c3d3a;
+    border-left: 3px solid #6fd6b0;
+    border-radius: 6px;
+    background: #14201f;
+    padding: 12px 14px;
+    margin-bottom: 24px;
+    font-size: 12px;
+    color: #9fb8ac;
+    line-height: 1.6;
+  }
+    .answer {
+    background: rgba(20, 32, 31, 0.65);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(111, 214, 176, 0.15);
+    border-left: 3px solid #6fd6b0;
+    border-radius: 10px;
+    padding: 18px;
+    margin-bottom: 16px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 14px;
+    line-height: 1.8;
+    color: #d4e8df;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    transition: box-shadow 0.3s ease;
+  }
+  .answer:hover {
+    box-shadow: 0 6px 28px rgba(0, 0, 0, 0.3);
+  }
+  .project-info b { color: #6fd6b0; }
+
+  .path-crumb {
+    color: #8fae9f;
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+
+  h1 { color: #70d7b1; font-size: 22px; margin: 0 0 8px; }
+  p.sub { color: #8fae9f; font-size: 1rem; margin: 0 0 12px; line-height: 1.6; }
+
+  .status-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #8fae9f;
+    margin-bottom: 20px;
+  }
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #8fae9f;
+  }
+  .dot.online { background: #6fd6b0; }
+  .dot.offline { background: #d9695a; }
+
+    button {
+        padding: 12px 24px;
+        background: linear-gradient(135deg, #6fd6b0, #5bc4a0);
+        color: #0f1a1d;
+        border: none;
+        border-radius: 10px;
+        font-weight: 700;
+        font-family: inherit;
+        font-size: 13px;
+        cursor: pointer;
+        margin: 1rem;
+        transition: all 0.25s ease;
+        box-shadow: 0 4px 14px rgba(111, 214, 176, 0.25);
+        letter-spacing: 0.3px;
+    }
+    button:hover {
+        background: linear-gradient(135deg, #85e0c0, #6fd6b0);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(111, 214, 176, 0.4);
+    }
+    button:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 8px rgba(111, 214, 176, 0.3);
+    }
+    .btn{
+        display: flex;
+        justify-content:  center;
+        align-items: center;
+        background: var(--panel-raised);
+        border: 1px solid var(--border);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+    .source {
+        background: #14201f;
+        border: 1px solid #2c3d3a;
+        border-radius: 6px;
+        padding: 10px 12px;
+        margin-bottom: 6px;
+        font-size: 13px;
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .source_content {
+        background: #14201f;
+        border: 1px solid #2c3d3a;
+        border-radius: 6px;
+        padding: 10px 12px;
+        margin-bottom: 1.5rem;
+        font-size: 13px;
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .source .path {
+        word-break: break-all;
+        overflow-wrap: anywhere;
+        flex: 1;
+        min-width: 0;
+    }
+    .source .idx {
+        color: #8fae9f;
+        font-size: 12px;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    input {
+        width: 100%;
+        padding: 12px;
+        margin-bottom: 10px;
+        color: #ffffff;
+        border: 1px solid #2c3d3a;
+        border-radius: 6px;
+        box-sizing: border-box;
+        background: rgba(20, 32, 31, 0.7);
+        font-family: inherit;
+        font-size: 14px;
+        transition: all 0.25s ease;
+        outline: none;
+    }
+    input::placeholder {
+        color: #5a7a6e;
+    }
+    input:focus {
+        border-color: rgba(111, 214, 176, 0.5);
+        box-shadow: 0 0 0 3px rgba(111, 214, 176, 0.05), 0 4px 16px rgba(111, 214, 176, 0.3);
+        background: rgba(20, 32, 31, 0.85);
+    }
+    ::selection {
+      background: rgba(20, 32, 31, 0.7);
+      color: #ffffff;
+    }
+    .spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid #2c3d3a;
+        border-top-color: #6fd6b0;
+        border-radius: 50%;
+        display: inline-block;
+        animation: spin 0.7s linear infinite;
+        margin-right: 8px;
+        vertical-align: middle;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    .chunk-text {
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: inherit;
+      color: #d4e8df;
+      font-size: 12px;
+      margin: 1rem;
+    }
+    .chunk-header {
+      display: block;
+      color: #70d7b1;
+      font-weight: bold;
+      margin-bottom: 1rem;
+    }
+
+</style>
+</head>
+<body>
+  <div class="project-info">
+    <b>— RAG against the machine</b><br>
+    Created as part of the 42 curriculum by ykhalouk.</b><br>
+    Retrieval-Augmented Generation over the vLLM codebase (BM25 retrieval + Qwen3-0.6B generation)
+  </div>
+
+  <div class="path-crumb" id="pathCrumb">data/raw/vllm-0.10.1/search</div>
+  <h1>rag against the machine</h1>
+  <p class="sub">Query the indexed vLLM codebase. Retrieval runs BM25 over chunked source and docs; answers are generated by Qwen3-0.6B grounded in the top-k retrieved spans.</p>
+
+  <div class="status-row">
+    <span class="dot" id="statusDot"></span>
+    <span id="statusText">checking server…</span>
+  </div>
+
+  <input id="query" placeholder="Ask a question...">
+  <input id="k" value="5" placeholder="k">
+
+  <div class="btn" role="tablist" aria-label="Query mode">
+        <button onclick="run('search')">Search</button>
+        <button onclick="run('search_content')">Search Content</button>
+        <button onclick="run('answer')">Answer</button>
+</div> 
+  
+  <div id="out"></div>
+
+<script>
+const API = "http://127.0.0.1:8000";
+const pathCrumb = document.getElementById("pathCrumb");
+const statusDot = document.getElementById("statusDot");
+const statusText = document.getElementById("statusText");
+
+async function checkHealth() {
+  try {
+    const res = await fetch(`${API}/health`);
+    if (res.ok) {
+      statusDot.className = "dot online";
+      statusText.textContent = "server online";
+    } else {
+      throw new Error();
+    }
+  } catch {
+    statusDot.className = "dot offline";
+    statusText.textContent = "server unreachable — run: make server";
+  }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+async function run(mode) {
+  const query = document.getElementById("query").value;
+  const k = document.getElementById("k").value;
+  const out = document.getElementById("out");
+  pathCrumb.textContent = `data/raw/vllm-0.10.1/${mode}`;
+  out.innerHTML = `<span class="spinner"></span> Loading...`;
+
+  try {
+    const res = await fetch(`${API}/${mode}?query=${encodeURIComponent(query)}&k=${k}`);
+    const data = await res.json();
+
+    let html = "";
+    if (mode === "answer") {
+        html += `<p class="sub"><b>Answer:</b></p>`;
+        html += `<div class="answer">${data.answer}</div>`;
+    }
+    if (mode === "search" || mode === "answer") {
+      if (data.retrieved_sources.length > 0) {
+          html += `<p class="sub"><b>Resources:</b></p>`;
+      }
+      for (const s of data.retrieved_sources) {
+        html += `<div class="source">
+          <span class="path">${s.file_path}</span>
+          <span class="idx">[${s.first_character_index}, ${s.last_character_index}]</span>
+        </div>`;
+      }
+    }
+    if (mode === "search_content") {
+      if (data.search_results.length > 0) {
+          html += `<p class="sub"><b>Resources Content:</b></p>`;
+      }
+      for (const s of data.search_results) {
+        const [firstLine, ...rest] = s.text.split("\n");
+        const restText = rest.join("\n");
+
+        html += `<div class="source_content">
+          <span class="chunk-header">${escapeHtml(firstLine)}</span>
+          <pre class="chunk-text">${escapeHtml(restText)}</pre>
+        </div>`;
+      }
+    }
+    out.innerHTML = html;
+  } catch (err) {
+    out.innerHTML = "Error: " + err;
+  }
+}
+
+checkHealth();
+setInterval(checkHealth, 5000);
+</script>
+</body>
+</html>

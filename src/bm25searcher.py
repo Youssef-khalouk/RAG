@@ -6,7 +6,7 @@ import pickle
 from pathlib import Path
 import os
 import json
-from functools import cache
+from functools import lru_cache
 from tqdm import tqdm
 
 
@@ -221,12 +221,15 @@ class BM25Searcher:
             except Exception:
                 _cache_curapted()
 
-    @cache
-    def query(self, query: str, type_flag: str = "") -> list[dict]:
+    @lru_cache
+    def query(self, query: str, type_flag: str = "",
+              top_k: int = None) -> list[dict]:
         if not self.bm25_text or not self.bm25_code or not self.bm25_both:
             print("the cache did not upload yet,"
                   " call load_bm25_cache() before you query.")
             exit(1)
+        if top_k is not None:
+            self.set_top_k(top_k)
 
         if type_flag == "doc":
             scores = self.bm25_text.get_scores(

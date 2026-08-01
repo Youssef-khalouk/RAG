@@ -9,7 +9,6 @@ from .validaters import (RagDataset,
                          StudentSearchResults,
                          MinimalAnswer,
                          StudentSearchResultsAndAnswer)
-from .LLM import LLM
 from tqdm import tqdm
 
 
@@ -99,6 +98,7 @@ def search_dataset(dataset_path: str,
 
 
 def answer(query: str, k: int = 10) -> None:
+    from .LLM import LLM
     searcher = BM25Searcher()
     searcher.set_top_k(k)
     searcher.load_bm25_cache()
@@ -111,7 +111,7 @@ def answer(query: str, k: int = 10) -> None:
 
 def answer_dataset(student_search_results_path: str,
                    save_directory: str) -> None:
-
+    from .LLM import LLM
     if not Path(student_search_results_path).exists():
         print(f"Error: file '{student_search_results_path}' not found.")
         exit(1)
@@ -201,9 +201,12 @@ def evaluate(student_search_results_path: str, dataset_path: str) -> None:
             dataset_s = dataset_source.first_character_index
             dataset_e = dataset_source.last_character_index
 
-            intersection = max(0, min(source_e, dataset_e) - max(source_s, dataset_s))
+            intersection = max(0, min(source_e, dataset_e)
+                               - max(source_s, dataset_s))
             union = max(source_e, dataset_e) - min(source_s, dataset_s)
             iou = intersection / union if union > 0 else 0
+            # this means the student result should take
+            # at list 5% of the dataset interval
             if iou >= 0.05:
                 return 1
         return 0

@@ -1,5 +1,5 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM
-from functools import cache
+from functools import lru_cache
 from typing import Any
 
 
@@ -9,7 +9,7 @@ class LLM:
     tokenizer = None
     max_context_characters: int = 3000
     _content = ("You answer questions using only the provided context."
-                "\nIf the answer is not in the context, say you don't know.")
+                "\nIf the answer is not in the context, say 'I don't know'.")
 
     @staticmethod
     def _init_model() -> None:
@@ -46,9 +46,9 @@ class LLM:
 
         return LLM.model.config.max_position_embeddings
 
-    @cache
+    @lru_cache
     @staticmethod
-    def ask(question: str, context: str = "") -> str:
+    def ask(question: str, context: str = "", refresh: bool = False) -> str:
         if not LLM.model:
             LLM._init_model()
         message = [

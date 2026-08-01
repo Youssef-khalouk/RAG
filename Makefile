@@ -90,6 +90,8 @@ moulinette_private_doc:
 moulinette_private_code:
 	$(MOULINETTE) $(DATASET_OUTPUT) $(PRIVATE_ANSWERD_CODE) $(M_PARAMETERS)
 
+server:
+	uv run uvicorn src.api:app --host 127.0.0.1 --port 8000
 
 download:
 	mkdir -p data

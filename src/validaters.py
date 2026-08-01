@@ -49,3 +49,16 @@ class StudentSearchResultsAndAnswer(BaseModel):
     """Output of the answer_dataset command."""
     search_results: List[MinimalAnswer]
     k: int
+
+
+class ChunkInfo(BaseModel):
+    """A single retrieved source location in the corpus."""
+    file_path: str
+    text_range: str
+    text: str
+
+
+class ChunksResults(BaseModel):
+    """output of search_content endpoint."""
+    search_results: list[ChunkInfo]
+    k: int
