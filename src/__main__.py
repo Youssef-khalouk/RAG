@@ -1,5 +1,5 @@
 from .upload_files import UploadDir
-from .bm25searcher import BM25Searcher
+from .RetrievalEngine import RetrievalEngine
 from pathlib import Path
 import fire
 from .print_data import print_data
@@ -16,7 +16,7 @@ def index(max_chunk_size: int = 2000) -> None:
     updir = UploadDir("data/raw/vllm-0.10.1", max_chunk_size)
     is_any_file_changed = updir.upload()
 
-    searcher = BM25Searcher()
+    searcher = RetrievalEngine()
     searcher.create_bm25_cache_and_save(
         updir.get_text_documents(),
         updir.get_code_documents(),
@@ -25,9 +25,9 @@ def index(max_chunk_size: int = 2000) -> None:
 
 
 def search(query: str, k: int = 10) -> None:
-    searcher = BM25Searcher()
+    searcher = RetrievalEngine()
     searcher.set_top_k(k)
-    searcher.load_bm25_cache()
+    searcher.load_cache()
     documents = searcher.query(query)
     for d in documents:
         doc = searcher.get_document(d[1], d[2])
@@ -38,9 +38,9 @@ def search(query: str, k: int = 10) -> None:
 
 
 def search_content(query: str, k: int = 10) -> None:
-    searcher = BM25Searcher()
+    searcher = RetrievalEngine()
     searcher.set_top_k(k)
-    searcher.load_bm25_cache()
+    searcher.load_cache()
     chunks = searcher.query(query)
     print_data(query, chunks, searcher)
 
@@ -60,9 +60,9 @@ def search_dataset(dataset_path: str,
             exit(1)
             return
 
-    searcher = BM25Searcher()
+    searcher = RetrievalEngine()
     searcher.set_top_k(k)
-    searcher.load_bm25_cache()
+    searcher.load_cache()
 
     path = Path(dataset_path)
     type = "both"
@@ -92,16 +92,18 @@ def search_dataset(dataset_path: str,
         )
     output = StudentSearchResults(search_results=search_results, k=k)
 
-    with open(save_directory, "w", encoding="utf-8") as file:
+    output_path = Path(save_directory) / Path(dataset_path).name
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as file:
         file.write(output.model_dump_json(indent=4))
-        print(f"json saved successfully to '{save_directory}'.")
+    print(f"Saved student_search_results to {output_path}")
 
 
 def answer(query: str, k: int = 10) -> None:
     from .LLM import LLM
-    searcher = BM25Searcher()
+    searcher = RetrievalEngine()
     searcher.set_top_k(k)
-    searcher.load_bm25_cache()
+    searcher.load_cache()
 
     chunks = searcher.query(query)
     context = LLM.get_context(chunks)
@@ -112,10 +114,10 @@ def answer(query: str, k: int = 10) -> None:
 def answer_dataset(student_search_results_path: str,
                    save_directory: str) -> None:
     from .LLM import LLM
-    if not Path(student_search_results_path).exists():
+    path = Path(student_search_results_path)
+    if not path.exists() or path.is_dir():
         print(f"Error: file '{student_search_results_path}' not found.")
         exit(1)
-
     with open(student_search_results_path, "r", encoding="utf-8") as file:
         try:
             search_results = StudentSearchResults.model_validate_json(
@@ -165,9 +167,12 @@ def answer_dataset(student_search_results_path: str,
 
         output = StudentSearchResultsAndAnswer(
             search_results=answer_results, k=search_results.k)
-        with open(save_directory, "w", encoding="utf-8") as file:
-            file.write(output.model_dump_json(indent=4))
 
+        output_path = Path(save_directory) / Path(
+            student_search_results_path).name
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, "w", encoding="utf-8") as file:
+            file.write(output.model_dump_json(indent=4))
 
 def evaluate(student_search_results_path: str, dataset_path: str) -> None:
 

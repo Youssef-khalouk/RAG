@@ -9,8 +9,8 @@ PRIVATE_ANSWERD_DOC  = "data/datasets_private/private/AnsweredQuestions/dataset_
 PRIVATE_ANSWERD_CODE = "data/datasets_private/private/AnsweredQuestions/dataset_code_private.json"
 
 MOULINETTE           = ./data/moulinette/moulinette-ubuntu evaluate_student_search_results
-DATASET_OUTPUT       = data/dataset_output.json
-ANSWERD_DATASET		 = data/answer_dataset_results.json
+SEARCH_OUTPUT_DIR    = data/output/search_results/UnansweredQuestions
+ANSWER_OUTPUT_DIR    = data/output/search_results_and_answer/UnansweredQuestions
 K                   ?= 10
 MAX_CHUNK_SIZE      ?= 2000
 M_PARAMETERS         = --k $(K) --max_context_length $(MAX_CHUNK_SIZE)
@@ -56,39 +56,55 @@ search_content:
 	uv run python -m src search_content --k $(K) --query "$(QUERY)"
 
 search_dataset_public_doc:
-	uv run python -m src search_dataset  --save_directory $(DATASET_OUTPUT) --k $(K) --dataset_path=$(PUBLIC_DOC_PATH)
+	uv run python -m src search_dataset  --save_directory $(SEARCH_OUTPUT_DIR) --k $(K) --dataset_path=$(PUBLIC_DOC_PATH)
 search_dataset_public_code:
-	uv run python -m src search_dataset --save_directory $(DATASET_OUTPUT) --k $(K) --dataset_path=$(PUBLIC_CODE_PATH)
+	uv run python -m src search_dataset --save_directory $(SEARCH_OUTPUT_DIR) --k $(K) --dataset_path=$(PUBLIC_CODE_PATH)
 search_dataset_private_doc:
-	uv run python -m src search_dataset --save_directory $(DATASET_OUTPUT) --k $(K) --dataset_path=$(PRIVATE_DOC_PATH)
+	uv run python -m src search_dataset --save_directory $(SEARCH_OUTPUT_DIR) --k $(K) --dataset_path=$(PRIVATE_DOC_PATH)
 search_dataset_private_code:
-	uv run python -m src search_dataset --save_directory $(DATASET_OUTPUT) --k $(K) --dataset_path=$(PRIVATE_CODE_PATH)
-
+	uv run python -m src search_dataset --save_directory $(SEARCH_OUTPUT_DIR) --k $(K) --dataset_path=$(PRIVATE_CODE_PATH)
 
 answer:
 	uv run python -m src answer --query "$(QUERY)" --k $(K)
 
-answer_dataset:
-	uv run python -m src answer_dataset --student_search_results_path $(DATASET_OUTPUT) --save_directory $(ANSWERD_DATASET)
+answer_dataset_public_doc:
+	uv run python -m src answer_dataset \
+		--student_search_results_path $(SEARCH_OUTPUT_DIR)/dataset_docs_public.json \
+		--save_directory $(ANSWER_OUTPUT_DIR)
+
+answer_dataset_public_code:
+	uv run python -m src answer_dataset \
+		--student_search_results_path $(SEARCH_OUTPUT_DIR)/dataset_code_public.json \
+		--save_directory $(ANSWER_OUTPUT_DIR)
+
+answer_dataset_private_doc:
+	uv run python -m src answer_dataset \
+		--student_search_results_path $(SEARCH_OUTPUT_DIR)/dataset_docs_private.json \
+		--save_directory $(ANSWER_OUTPUT_DIR)
+
+answer_dataset_private_code:
+	uv run python -m src answer_dataset \
+		--student_search_results_path $(SEARCH_OUTPUT_DIR)/dataset_code_private.json \
+		--save_directory $(ANSWER_OUTPUT_DIR)
 
 evaluate_public_doc:
-	uv run python -m src evaluate $(DATASET_OUTPUT) $(PUBLIC_ANSWERD_DOC)
+	uv run python -m src evaluate $(SEARCH_OUTPUT_DIR) $(PUBLIC_ANSWERD_DOC)
 evaluate_public_code:
-	uv run python -m src evaluate $(DATASET_OUTPUT) $(PUBLIC_ANSWERD_CODE)
+	uv run python -m src evaluate $(SEARCH_OUTPUT_DIR) $(PUBLIC_ANSWERD_CODE)
 evaluate_private_doc:
-	uv run python -m src evaluate $(DATASET_OUTPUT) $(PRIVATE_ANSWERD_DOC)
+	uv run python -m src evaluate $(SEARCH_OUTPUT_DIR) $(PRIVATE_ANSWERD_DOC)
 evaluate_private_code:
-	uv run python -m src evaluate $(DATASET_OUTPUT) $(PRIVATE_ANSWERD_CODE)
+	uv run python -m src evaluate $(SEARCH_OUTPUT_DIR) $(PRIVATE_ANSWERD_CODE)
 
 
 moulinette_public_doc:
-	$(MOULINETTE) $(DATASET_OUTPUT) $(PUBLIC_ANSWERD_DOC) $(M_PARAMETERS)
+	$(MOULINETTE) $(SEARCH_OUTPUT_DIR) $(PUBLIC_ANSWERD_DOC) $(M_PARAMETERS)
 moulinette_public_code:
-	$(MOULINETTE) $(DATASET_OUTPUT) $(PUBLIC_ANSWERD_CODE) $(M_PARAMETERS)
+	$(MOULINETTE) $(SEARCH_OUTPUT_DIR) $(PUBLIC_ANSWERD_CODE) $(M_PARAMETERS)
 moulinette_private_doc:
-	$(MOULINETTE) $(DATASET_OUTPUT) $(PRIVATE_ANSWERD_DOC) $(M_PARAMETERS)
+	$(MOULINETTE) $(SEARCH_OUTPUT_DIR) $(PRIVATE_ANSWERD_DOC) $(M_PARAMETERS)
 moulinette_private_code:
-	$(MOULINETTE) $(DATASET_OUTPUT) $(PRIVATE_ANSWERD_CODE) $(M_PARAMETERS)
+	$(MOULINETTE) $(SEARCH_OUTPUT_DIR) $(PRIVATE_ANSWERD_CODE) $(M_PARAMETERS)
 
 server:
 	uv run uvicorn src.api:app --host 127.0.0.1 --port 8000
@@ -128,8 +144,8 @@ clean:
 
 clean_cache:
 	rm -rf data/processed
-	rm -rf $(DATASET_OUTPUT)
-	rm -rf $(ANSWERD_DATASET)
+	rm -rf $(SEARCH_OUTPUT_DIR)
+	rm -rf $(ANSWER_OUTPUT_DIR)
 
 lint:
 	flake8 src

@@ -1,5 +1,5 @@
 from .upload_files import UploadDir
-from .bm25searcher import BM25Searcher
+from .RetrievalEngine import RetrievalEngine
 from .process import Process
 from .print_data import print_data
 
@@ -9,7 +9,7 @@ __auther__ = "youssef khalouk"
 
 __all__ = [
     "UploadDir",
-    "BM25Searcher",
+    "RetrievalEngine",
     "Process",
     "print_data",
 ]

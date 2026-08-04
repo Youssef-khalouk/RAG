@@ -18,6 +18,7 @@ dependencies = [
     "tqdm",
     "fastapi",
     "uvicorn",
+    "sentence-transformers",
 ]
 
 [build-system]

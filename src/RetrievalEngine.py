@@ -1,4 +1,5 @@
 from rank_bm25 import BM25Okapi
+from sentence_transformers import SentenceTransformer
 from .process import Process
 from typing import Any
 import sys
@@ -9,8 +10,11 @@ import json
 from functools import lru_cache
 from tqdm import tqdm
 
+import torch
+import numpy as np
 
-class BM25Searcher:
+
+class RetrievalEngine:
     def __init__(self):
         self.text_documents: dict = None
         self.code_documents: dict = None
@@ -21,6 +25,10 @@ class BM25Searcher:
         self.bm25_code: Any = None
         self.bm25_both: Any = None
         self.top_k: int = 10
+        self.model: Any = SentenceTransformer("paraphrase-MiniLM-L3-v2")
+        self.doc_embeddings: Any = None
+        self.code_embeddings: Any = None
+        self.both_embeddings: Any = None
 
     def _save_bm25_cache(self) -> None:
         pkls = {
@@ -38,6 +46,14 @@ class BM25Searcher:
             {
                 "bm25": self.bm25_both,
                 "both_chunks": self.both_chunks
+            },
+            "data/processed/doc_embeddings_cache.pkl":
+            {
+                "embeddings": self.doc_embeddings,
+            },
+            "data/processed/code_embeddings_cache.pkl":
+            {
+                "embeddings": self.code_embeddings,
             }
         }
         os.makedirs("data/processed", exist_ok=True)
@@ -111,17 +127,11 @@ class BM25Searcher:
         tokenized_code = []
         self.code_chunks = []
         self.doc_chunks = []
-
-        for k, v in documents_code.items():
-            if k == "k":
-                continue
-
-            for chunk in v["chunks"]:
-                text = chunk["path_tokens"] + chunk["text"]
-                tokenized_code.append(Process.preprocess_code(text).split())
-                pos = f"[{chunk['start_index']}, {chunk['end_index']}]:"
-                text = k + f" {pos}\n" + chunk["text"]
-                self.code_chunks.append((text, k, chunk["chunk"], pos))
+        self.doc_embeddings = []
+        self.code_embeddings = []
+        self.both_embeddings = []
+        doc_embeddings_chunks = []
+        code_embeddings_chunks = []
 
         for k, v in documents_text.items():
             if k == "k":
@@ -134,16 +144,40 @@ class BM25Searcher:
                     .removeprefix(".")
                 )
                 text = chunk["path_tokens"] + chunk["text"]
+                doc_embeddings_chunks.append(text)
                 tokenized_text.append(Process.preprocess_doc(text).split())
                 pos = f"[{chunk['start_index']}, {chunk['end_index']}]:"
                 text = k + f" {pos}\n" + good_text
                 self.doc_chunks.append((text, k, chunk["chunk"], pos))
+
+        for k, v in documents_code.items():
+            if k == "k":
+                continue
+            for chunk in v["chunks"]:
+                text = chunk["path_tokens"] + chunk["text"]
+                code_embeddings_chunks.append(text)
+                tokenized_code.append(Process.preprocess_code(text).split())
+                pos = f"[{chunk['start_index']}, {chunk['end_index']}]:"
+                text = k + f" {pos}\n" + chunk["text"]
+                self.code_chunks.append((text, k, chunk["chunk"], pos))
 
         self.both_chunks = self.doc_chunks + self.code_chunks
 
         self.bm25_text = BM25Okapi(tokenized_text)
         self.bm25_code = BM25Okapi(tokenized_code)
         self.bm25_both = BM25Okapi(tokenized_text + tokenized_code)
+        with torch.inference_mode():
+            self.doc_embeddings = self.model.encode(
+                doc_embeddings_chunks, batch_size=256,
+                show_progress_bar=True, convert_to_numpy=True
+            )
+        with torch.inference_mode():
+            self.code_embeddings = self.model.encode(
+                code_embeddings_chunks, batch_size=256,
+                show_progress_bar=True, convert_to_numpy=True
+            )
+        self.both_embeddings = np.concatenate([self.doc_embeddings,
+                                               self.code_embeddings])
         self._save_bm25_cache()
 
     def _is_cached_files_exist(self) -> bool:
@@ -151,10 +185,12 @@ class BM25Searcher:
                 Path("data/processed/bm25_code_cache.pkl").exists() and
                 Path("data/processed/bm25_both_cache.pkl").exists() and
                 Path("data/processed/doc_documents.json").exists() and
-                Path("data/processed/code_documents.json").exists())
+                Path("data/processed/code_documents.json").exists() and
+                Path("data/processed/doc_embeddings_cache.pkl").exists() and
+                Path("data/processed/code_embeddings_cache.pkl").exists())
 
     def _remove_cache_files(self) -> None:
-        """remove the cache if its curapted or something went wrong."""
+        """remove the cache from disk."""
         try:
             Path("data/processed/doc_documents.json").unlink()
         except Exception:
@@ -175,8 +211,12 @@ class BM25Searcher:
             Path("data/processed/bm25_both_cache.pkl").unlink()
         except Exception:
             pass
+        try:
+            Path("data/processed/doc_embeddings_cache.pkl").unlink()
+        except Exception:
+            pass
 
-    def load_bm25_cache(self) -> None:
+    def load_cache(self) -> None:
         if not self._is_cached_files_exist():
             print("bm25 cache dosn't exists!"
                   "\nrun 'make index' to create cache.")
@@ -220,13 +260,59 @@ class BM25Searcher:
                 self.both_chunks = cached["both_chunks"]
             except Exception:
                 _cache_curapted()
+        with open("data/processed/doc_embeddings_cache.pkl", "rb") as file:
+            try:
+                cached = pickle.load(file)
+                self.doc_embeddings = cached["embeddings"]
+            except Exception:
+                _cache_curapted()
+        with open("data/processed/code_embeddings_cache.pkl", "rb") as file:
+            try:
+                cached = pickle.load(file)
+                self.code_embeddings = cached["embeddings"]
+            except Exception:
+                _cache_curapted()
+        self.both_embeddings = np.concatenate([self.doc_embeddings,
+                                               self.code_embeddings])
 
     @lru_cache
-    def query(self, query: str, type_flag: str = "",
-              top_k: int = None) -> list[dict]:
+    def query_embeddings(self, query: str, type_flag: str = "",
+                         top_k: int = None) -> list[dict]:
+        if self.doc_embeddings is None or self.code_embeddings is None:
+            print("embeddings cache did not load yet, "
+                  "call load_cache() before you query.")
+            exit(1)
+        if top_k is not None:
+            self.set_top_k(top_k)
+
+        if type_flag == "doc":
+            vectors = self.doc_embeddings
+            chunks = self.doc_chunks
+        elif type_flag == "code":
+            vectors = self.code_embeddings
+            chunks = self.code_chunks
+        else:
+            vectors = self.both_embeddings
+            chunks = self.both_chunks
+
+        with torch.inference_mode():
+            query_vector = self.model.encode(
+                [query], convert_to_numpy=True
+            )[0]
+
+        query_norm = query_vector / np.linalg.norm(query_vector)
+        vectors_norm = vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
+        scores = vectors_norm @ query_norm
+
+        top_indexes = np.argsort(scores)[::-1][:self.top_k]
+        return [chunks[i] for i in top_indexes]
+
+    @lru_cache
+    def query_bm25(self, query: str, type_flag: str = "",
+                   top_k: int = None) -> list[dict]:
         if not self.bm25_text or not self.bm25_code or not self.bm25_both:
             print("the cache did not upload yet,"
-                  " call load_bm25_cache() before you query.")
+                  " call load_cache() before you query.")
             exit(1)
         if top_k is not None:
             self.set_top_k(top_k)
@@ -254,3 +340,33 @@ class BM25Searcher:
         for index in top_indexes:
             query_results.append(documents[index])
         return query_results
+
+    @lru_cache
+    def query(self, query: str, type_flag: str = "",
+              top_k: int = None) -> list[dict]:
+        if top_k is not None:
+            self.set_top_k(top_k)
+
+        half = max(1, self.top_k // 2)
+        bm25_results = self.query_bm25(query, type_flag, top_k)
+        embedding_results = self.query_embeddings(query, type_flag, top_k)
+
+        seen = set()
+        combined = []
+
+        def add_unique(chunks, limit):
+            added = 0
+            for chunk in chunks:
+                key = (chunk[1], chunk[2])
+                if key in seen:
+                    continue
+                seen.add(key)
+                combined.append(chunk)
+                added += 1
+                if added >= limit:
+                    break
+
+        add_unique(bm25_results, half)
+        add_unique(embedding_results, self.top_k - half)
+
+        return combined[:self.top_k]

@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from .bm25searcher import BM25Searcher
+from .RetrievalEngine import RetrievalEngine
 from .LLM import LLM
 from .validaters import (MinimalSource,
                          MinimalSearchResults,
@@ -24,8 +24,8 @@ app.add_middleware(
 )
 
 # Loaded once at startup
-_searcher = BM25Searcher()
-_searcher.load_bm25_cache()
+_searcher = RetrievalEngine()
+_searcher.load_cache()
 LLM._init_model()
 
 
