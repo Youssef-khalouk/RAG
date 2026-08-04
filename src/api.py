@@ -40,6 +40,7 @@ def search_content(
     query: str = Query(..., description="the search conent"),
     k: int = Query(10, description="Number of top results to return")
         ) -> ChunksResults:
+    """Return the top-k retrieved sources content for a single query."""
     if not query.strip():
         raise HTTPException(status_code=400, detail="Query must not be empty.")
     if k <= 0:

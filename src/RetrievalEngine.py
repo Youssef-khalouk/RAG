@@ -1,3 +1,5 @@
+"""Retrieval utilities for indexing, caching, and querying document and code chunks."""
+
 from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 from .process import Process
@@ -15,7 +17,10 @@ import numpy as np
 
 
 class RetrievalEngine:
+    """Build and query BM25 and embedding-based retrieval indexes for documents."""
+
     def __init__(self):
+        """Initialize retrieval state, caches, and the sentence-transformer model."""
         self.text_documents: dict = None
         self.code_documents: dict = None
         self.doc_chunks: list[str] = []
@@ -31,6 +36,7 @@ class RetrievalEngine:
         self.both_embeddings: Any = None
 
     def _save_bm25_cache(self) -> None:
+        """Persist BM25 indexes and embeddings to the processed-data cache directory."""
         pkls = {
             "data/processed/bm25_text_cache.pkl":
             {
@@ -64,12 +70,14 @@ class RetrievalEngine:
                 pickle.dump(content, file)
 
     def set_top_k(self, size: int) -> None:
+        """Set the number of top results returned by query methods."""
         if size <= 0:
             print("top_k size should be more then 0!")
             sys.exit(1)
         self.top_k = size
 
     def get_document_content(self, path: str, chunk: int) -> list[dict]:
+        """Return the content and metadata for a specific chunk from a document or code file."""
         if self.text_documents is None or self.code_documents is None:
             print("there is no documents!")
             exit(1)
@@ -87,6 +95,7 @@ class RetrievalEngine:
         return d
 
     def get_document(self, path: str, chunk: int) -> dict | None:
+        """Return metadata for a specific chunk without including its text content."""
         if self.text_documents is None or self.code_documents is None:
             print("there is no documents!")
             exit(1)
@@ -106,7 +115,7 @@ class RetrievalEngine:
                         documents_text: list[dict],
                         documents_code: list[dict],
                         is_files_changed: bool) -> None:
-        """this method does rebuild BM25 cache if its not exists."""
+        """Ensure retrieval indexes exist, rebuilding them when needed."""
         # this function used when i need to check the cached file is exist
         # if not rebuild cache
         if not is_files_changed and self._is_cached_files_exist():
@@ -117,6 +126,7 @@ class RetrievalEngine:
                                    documents_text: list[dict],
                                    documents_code: list[dict],
                                    is_files_changed: bool) -> None:
+        """Build BM25 indexes and embeddings from documents and persist them to disk."""
         if not is_files_changed and self._is_cached_files_exist():
             return
 
@@ -181,6 +191,7 @@ class RetrievalEngine:
         self._save_bm25_cache()
 
     def _is_cached_files_exist(self) -> bool:
+        """Return whether the required cache files are present on disk."""
         return (Path("data/processed/bm25_text_cache.pkl").exists() and
                 Path("data/processed/bm25_code_cache.pkl").exists() and
                 Path("data/processed/bm25_both_cache.pkl").exists() and
@@ -190,7 +201,7 @@ class RetrievalEngine:
                 Path("data/processed/code_embeddings_cache.pkl").exists())
 
     def _remove_cache_files(self) -> None:
-        """remove the cache from disk."""
+        """Remove retrieval cache files from disk."""
         try:
             Path("data/processed/doc_documents.json").unlink()
         except Exception:
@@ -217,12 +228,14 @@ class RetrievalEngine:
             pass
 
     def load_cache(self) -> None:
+        """Load BM25 indexes, embeddings, and document metadata from cache."""
         if not self._is_cached_files_exist():
             print("bm25 cache dosn't exists!"
                   "\nrun 'make index' to create cache.")
             exit(1)
 
         def _cache_curapted() -> None:
+            """Handle corrupted cache files by deleting them and exiting."""
             print("Error: the cache is corupted, "
                   "run 'make index' to create new cache.")
             self._remove_cache_files()
@@ -278,6 +291,7 @@ class RetrievalEngine:
     @lru_cache
     def query_embeddings(self, query: str, type_flag: str = "",
                          top_k: int = None) -> list[dict]:
+        """Return the top matching chunks using semantic embeddings."""
         if self.doc_embeddings is None or self.code_embeddings is None:
             print("embeddings cache did not load yet, "
                   "call load_cache() before you query.")
@@ -310,6 +324,7 @@ class RetrievalEngine:
     @lru_cache
     def query_bm25(self, query: str, type_flag: str = "",
                    top_k: int = None) -> list[dict]:
+        """Return the top matching chunks using BM25 lexical ranking."""
         if not self.bm25_text or not self.bm25_code or not self.bm25_both:
             print("the cache did not upload yet,"
                   " call load_cache() before you query.")
@@ -344,6 +359,7 @@ class RetrievalEngine:
     @lru_cache
     def query(self, query: str, type_flag: str = "",
               top_k: int = None) -> list[dict]:
+        """Combine BM25 and embedding results into a deduplicated ranked list."""
         if top_k is not None:
             self.set_top_k(top_k)
 

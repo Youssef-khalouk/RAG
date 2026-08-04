@@ -13,6 +13,7 @@ from tqdm import tqdm
 
 
 def index(max_chunk_size: int = 2000) -> None:
+    """Build and save the retrieval index from the raw source documents."""
     updir = UploadDir("data/raw/vllm-0.10.1", max_chunk_size)
     is_any_file_changed = updir.upload()
 
@@ -25,6 +26,7 @@ def index(max_chunk_size: int = 2000) -> None:
 
 
 def search(query: str, k: int = 10) -> None:
+    """Search the indexed documents and print the matching source locations."""
     searcher = RetrievalEngine()
     searcher.set_top_k(k)
     searcher.load_cache()
@@ -38,6 +40,7 @@ def search(query: str, k: int = 10) -> None:
 
 
 def search_content(query: str, k: int = 10) -> None:
+    """Search the index and print the retrieved chunks with their content."""
     searcher = RetrievalEngine()
     searcher.set_top_k(k)
     searcher.load_cache()
@@ -48,6 +51,7 @@ def search_content(query: str, k: int = 10) -> None:
 def search_dataset(dataset_path: str,
                    k: int = 10,
                    save_directory: str = "data/output.json") -> None:
+    """Run retrieval over a dataset of questions and save the results."""
 
     if not Path(dataset_path).exists():
         print(f"Error: dataset_path '{dataset_path}' dosn't exist.")
@@ -100,6 +104,7 @@ def search_dataset(dataset_path: str,
 
 
 def answer(query: str, k: int = 10) -> None:
+    """Answer a single question using the retrieved context and print the result."""
     from .LLM import LLM
     searcher = RetrievalEngine()
     searcher.set_top_k(k)
@@ -113,6 +118,7 @@ def answer(query: str, k: int = 10) -> None:
 
 def answer_dataset(student_search_results_path: str,
                    save_directory: str) -> None:
+    """Generate answers for a batch of saved search results and write them out."""
     from .LLM import LLM
     path = Path(student_search_results_path)
     if not path.exists() or path.is_dir():
@@ -175,6 +181,7 @@ def answer_dataset(student_search_results_path: str,
             file.write(output.model_dump_json(indent=4))
 
 def evaluate(student_search_results_path: str, dataset_path: str) -> None:
+    """Evaluate retrieved sources against the reference dataset and print recall metrics."""
 
     if not Path(student_search_results_path).exists():
         print(f"Error: file '{student_search_results_path}' not found.")
@@ -199,6 +206,7 @@ def evaluate(student_search_results_path: str, dataset_path: str) -> None:
             return
 
     def is_it_in(source) -> int:
+        """Return 1 when a retrieved source overlaps the expected dataset source enough."""
         dataset_source = item.sources[0]
         if source.file_path == dataset_source.file_path:
             source_s = source.first_character_index

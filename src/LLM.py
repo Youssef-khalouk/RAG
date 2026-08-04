@@ -1,3 +1,5 @@
+"""Utilities for loading a local language model and answering questions from context."""
+
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from typing import Any
 import pickle
@@ -6,6 +8,8 @@ from pathlib import Path
 
 
 class LLM:
+    """Wrap model loading, caching, context assembly, and prompting helpers."""
+
     model_name = "Qwen/Qwen3-0.6B"
     model = None
     tokenizer = None
@@ -16,6 +20,7 @@ class LLM:
 
     @staticmethod
     def load_cache():
+        """Load the persisted LLM response cache from disk if it exists."""
         path = Path("data/processed/llm_cache.pkl")
         if path.exists():
             with open("data/processed/llm_cache.pkl", "rb") as file:
@@ -30,12 +35,14 @@ class LLM:
 
     @staticmethod
     def save_cache():
+        """Persist the in-memory LLM response cache to disk."""
         os.makedirs("data/processed", exist_ok=True)
         with open("data/processed/llm_cache.pkl", "wb") as file:
             pickle.dump(LLM.llm_cache, file)
 
     @staticmethod
     def _init_model() -> None:
+        """Load the tokenizer and causal language model on first use."""
         # Download the tokenizer
         LLM.tokenizer = AutoTokenizer.from_pretrained(LLM.model_name)
         # Download the model
@@ -48,6 +55,7 @@ class LLM:
 
     @staticmethod
     def get_context(chunks: list[Any] = []) -> str:
+        """Assemble a context string from retrieved chunks up to the configured limit."""
         context = ""
         if chunks == []:
             return context
@@ -65,6 +73,7 @@ class LLM:
 
     @staticmethod
     def max_tokens() -> int:
+        """Return the model's maximum supported position embedding size."""
         if not LLM.model:
             LLM._init_model()
 
@@ -72,6 +81,7 @@ class LLM:
 
     @staticmethod
     def ask(question: str, context: str = "", refresh: bool = False) -> str:
+        """Answer a question using the provided context and cached model responses."""
         if not LLM.model:
             LLM._init_model()
         key = (question, str(context))

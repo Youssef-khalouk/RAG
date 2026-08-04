@@ -57,6 +57,7 @@ STOP_WORDS = {
 
 
 def print_data(query, chunks, searcher=None) -> None:
+    """printing data with colors."""
     for d in chunks:
         print(f"{Fore.YELLOW}\n\nQuestion: {query}{Style.RESET_ALL}")
         print(f"{Fore.BLUE}path: {d[1]} {d[3]}{Style.RESET_ALL}")
