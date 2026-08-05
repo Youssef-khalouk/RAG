@@ -260,7 +260,6 @@ async function run(mode) {
   const out = document.getElementById("out");
   pathCrumb.textContent = `data/raw/vllm-0.10.1/${mode}`;
   out.innerHTML = `<span class="spinner"></span> Loading...`;
-
   try {
     const res = await fetch(`${API}/${mode}?query=${encodeURIComponent(query)}&k=${k}`);
     const data = await res.json();

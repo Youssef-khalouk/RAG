@@ -1,4 +1,7 @@
-"""Utilities for loading a local language model and answering questions from context."""
+"""
+Utilities for loading a local language model
+and answering questions from context.
+"""
 
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from typing import Any
@@ -10,16 +13,17 @@ from pathlib import Path
 class LLM:
     """Wrap model loading, caching, context assembly, and prompting helpers."""
 
-    model_name = "Qwen/Qwen3-0.6B"
-    model = None
+    model_name: str = "Qwen/Qwen3-0.6B"
+    model: AutoModelForCausalLM | None = None
     tokenizer = None
     max_context_characters: int = 3000
-    _content = ("You answer questions using only the provided context."
-                "\nIf the answer is not in the context, say 'I don't know'.")
+    _content: str = (
+        "You answer questions using only the provided context.\n"
+        "If the answer is not in the context, say 'I don't know'.")
     llm_cache: dict = {}
 
     @staticmethod
-    def load_cache():
+    def load_cache() -> None:
         """Load the persisted LLM response cache from disk if it exists."""
         path = Path("data/processed/llm_cache.pkl")
         if path.exists():
@@ -34,7 +38,7 @@ class LLM:
                         pass
 
     @staticmethod
-    def save_cache():
+    def save_cache() -> None:
         """Persist the in-memory LLM response cache to disk."""
         os.makedirs("data/processed", exist_ok=True)
         with open("data/processed/llm_cache.pkl", "wb") as file:
@@ -55,7 +59,10 @@ class LLM:
 
     @staticmethod
     def get_context(chunks: list[Any] = []) -> str:
-        """Assemble a context string from retrieved chunks up to the configured limit."""
+        """
+        Assemble a context string from retrieved chunks up to
+        the configured limit.
+        """
         context = ""
         if chunks == []:
             return context
@@ -74,18 +81,24 @@ class LLM:
     @staticmethod
     def max_tokens() -> int:
         """Return the model's maximum supported position embedding size."""
-        if not LLM.model:
+        if LLM.model is None:
             LLM._init_model()
-
-        return LLM.model.config.max_position_embeddings
+        assert LLM.model is not None
+        try:
+            _max = LLM.model.config.max_position_embeddings
+            return int(_max)
+        except Exception:
+            return 20000
 
     @staticmethod
     def ask(question: str, context: str = "", refresh: bool = False) -> str:
-        """Answer a question using the provided context and cached model responses."""
+        """
+        Answer a question using the provided context and cached responses.
+        """
         if not LLM.model:
             LLM._init_model()
         key = (question, str(context))
-        cached = LLM.llm_cache.get(key, None)
+        cached: str | None = LLM.llm_cache.get(key, None)
         if cached is not None:
             return cached
         message = [
@@ -98,15 +111,17 @@ class LLM:
                 "content": f"Context:\n{context}\n\nQuestion:\n{question}"
             }
         ]
+        assert LLM.tokenizer is not None
         text = LLM.tokenizer.apply_chat_template(
             message,
             tokenize=False,
             add_generation_prompt=True,
             enable_thinking=False
         )
+        assert LLM.model is not None
         inputs = LLM.tokenizer(text, return_tensors="pt").to(LLM.model.device)
         outputs = LLM.model.generate(**inputs, max_new_tokens=300)
-        answer = LLM.tokenizer.decode(
+        answer: str = LLM.tokenizer.decode(
             outputs[0][inputs.input_ids.shape[1]:],
             skip_special_tokens=True
         )

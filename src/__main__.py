@@ -8,12 +8,41 @@ from .validaters import (RagDataset,
                          MinimalSearchResults,
                          StudentSearchResults,
                          MinimalAnswer,
-                         StudentSearchResultsAndAnswer)
+                         StudentSearchResultsAndAnswer,
+                         UnansweredQuestion)
 from tqdm import tqdm
+
+
+def verify_max_chunk_size(max_chunk_size: int) -> None:
+    """verify the max chunk size for sifty."""
+    if max_chunk_size <= 200:
+        print("Error: max_chunk_size must be greater than 200.")
+        exit(1)
+    if max_chunk_size > 2000:
+        print("Error: max_chunk_size must be less than 2000.")
+        exit(1)
+
+
+def verify_k(k: int) -> None:
+    """verify top k for sifty."""
+    if k <= 0:
+        print("Error: k must be greater than 0.")
+        exit(1)
+    if k > 20:
+        print("Error: k must be less than or equal to 20.")
+        exit(1)
+
+
+def verify_query(query: str) -> None:
+    """verify the query if its empty."""
+    if query.strip() == "":
+        print("Error: query should not be empty.")
+        exit(1)
 
 
 def index(max_chunk_size: int = 2000) -> None:
     """Build and save the retrieval index from the raw source documents."""
+    verify_max_chunk_size(max_chunk_size)
     updir = UploadDir("data/raw/vllm-0.10.1", max_chunk_size)
     is_any_file_changed = updir.upload()
 
@@ -27,12 +56,16 @@ def index(max_chunk_size: int = 2000) -> None:
 
 def search(query: str, k: int = 10) -> None:
     """Search the indexed documents and print the matching source locations."""
+    verify_query(query)
+    verify_k(k)
     searcher = RetrievalEngine()
     searcher.set_top_k(k)
     searcher.load_cache()
     documents = searcher.query(query)
     for d in documents:
         doc = searcher.get_document(d[1], d[2])
+        if doc == {}:
+            continue
         print(
             f"{doc['file_path']} "
             f"[{doc['first_character_index']}, {doc['last_character_index']}]"
@@ -41,6 +74,8 @@ def search(query: str, k: int = 10) -> None:
 
 def search_content(query: str, k: int = 10) -> None:
     """Search the index and print the retrieved chunks with their content."""
+    verify_query(query)
+    verify_k(k)
     searcher = RetrievalEngine()
     searcher.set_top_k(k)
     searcher.load_cache()
@@ -50,11 +85,11 @@ def search_content(query: str, k: int = 10) -> None:
 
 def search_dataset(dataset_path: str,
                    k: int = 10,
-                   save_directory: str = "data/output.json") -> None:
+                   save_directory: str = "data/output/output.json") -> None:
     """Run retrieval over a dataset of questions and save the results."""
-
+    verify_k(k)
     if not Path(dataset_path).exists():
-        print(f"Error: dataset_path '{dataset_path}' dosn't exist.")
+        print(f"Error: dataset_path '{dataset_path}' doesn't exist.")
         exit(1)
     with open(dataset_path, "r", encoding="utf-8") as file:
         try:
@@ -81,6 +116,8 @@ def search_dataset(dataset_path: str,
         retrieved_sources: list[MinimalSource] = []
         for d in documents:
             document = searcher.get_document(d[1], d[2])
+            if document == {}:
+                continue
             retrieved_sources.append(
                 MinimalSource(
                     file_path=document["file_path"],
@@ -104,8 +141,13 @@ def search_dataset(dataset_path: str,
 
 
 def answer(query: str, k: int = 10) -> None:
-    """Answer a single question using the retrieved context and print the result."""
+    """
+    Answer a single question using the retrieved context and print the result.
+    """
+    verify_query(query)
+    verify_k(k)
     from .LLM import LLM
+
     searcher = RetrievalEngine()
     searcher.set_top_k(k)
     searcher.load_cache()
@@ -118,8 +160,11 @@ def answer(query: str, k: int = 10) -> None:
 
 def answer_dataset(student_search_results_path: str,
                    save_directory: str) -> None:
-    """Generate answers for a batch of saved search results and write them out."""
+    """
+    Generate answers for a batch of saved search results and write them out.
+    """
     from .LLM import LLM
+
     path = Path(student_search_results_path)
     if not path.exists() or path.is_dir():
         print(f"Error: file '{student_search_results_path}' not found.")
@@ -131,17 +176,21 @@ def answer_dataset(student_search_results_path: str,
         except Exception as e:
             print(f"Error: {e}")
             exit(1)
-    LLM._init_model()  # initalize the LLM model before we start
+    LLM._init_model()  # initialize the LLM model before we start
     files_chunks = {}
     print("Loading chunks:")
     for s_result in tqdm(search_results.search_results,
                          desc="Uploading Questions data", unit="Question"):
         content = []
         for chunk in s_result.retrieved_sources:
-            with open(chunk.file_path, "r", encoding="utf-8") as file:
-                text = file.read()
-                text_chunk = text[chunk.first_character_index + 1:
-                                  chunk.last_character_index]
+            try:
+                with open(chunk.file_path, "r", encoding="utf-8") as file:
+                    text = file.read()
+                    text_chunk = text[chunk.first_character_index + 1:
+                                      chunk.last_character_index]
+            except Exception as e:
+                print(f"Error: {e}")
+                continue
             text_pos = (f" [{chunk.first_character_index},"
                         f" {chunk.last_character_index}]:")
             text_path_info = chunk.file_path + text_pos
@@ -180,14 +229,18 @@ def answer_dataset(student_search_results_path: str,
         with open(output_path, "w", encoding="utf-8") as file:
             file.write(output.model_dump_json(indent=4))
 
+
 def evaluate(student_search_results_path: str, dataset_path: str) -> None:
-    """Evaluate retrieved sources against the reference dataset and print recall metrics."""
+    """
+    Evaluate retrieved sources against the reference dataset
+    and print recall metrics.
+    """
 
     if not Path(student_search_results_path).exists():
         print(f"Error: file '{student_search_results_path}' not found.")
         exit(1)
     if not Path(dataset_path).exists():
-        print(f"Error: dataset_path '{dataset_path}' dosn't exist.")
+        print(f"Error: dataset_path '{dataset_path}' doesn't exist.")
         exit(1)
 
     with open(student_search_results_path, "r", encoding="utf-8") as file:
@@ -205,9 +258,11 @@ def evaluate(student_search_results_path: str, dataset_path: str) -> None:
             exit(1)
             return
 
-    def is_it_in(source) -> int:
-        """Return 1 when a retrieved source overlaps the expected dataset source enough."""
-        dataset_source = item.sources[0]
+    def is_in(source: MinimalSource, dataset_source: MinimalSource) -> int:
+        """
+        Return 1 when a retrieved source overlaps
+        the expected dataset source enough.
+        """
         if source.file_path == dataset_source.file_path:
             source_s = source.first_character_index
             source_e = source.last_character_index
@@ -229,21 +284,26 @@ def evaluate(student_search_results_path: str, dataset_path: str) -> None:
     recall1 = recall3 = recall5 = recall10 = 0
 
     for doc in results:
-        item = next((x for x in dataset if x.question_id == doc.question_id),
-                    None)
-        if item is None:
+        item = next(
+            (x for x in dataset if x.question_id == doc.question_id), None)
+        if item is None or isinstance(item, UnansweredQuestion):
             print(f"the question '{doc.question_id}' "
                   "did not found in dataset.")
             exit(1)
-        recall1 += any(is_it_in(s) for s in doc.retrieved_sources[:1])
-        recall3 += any(is_it_in(s) for s in doc.retrieved_sources[:3])
-        recall5 += any(is_it_in(s) for s in doc.retrieved_sources[:5])
-        recall10 += any(is_it_in(s) for s in doc.retrieved_sources[:10])
+        if item.sources == []:
+            print("there is no expected chunk in dataset,"
+                  f"question_id = '{item.question_id}'.")
+            continue
+        source = item.sources[0]
+        recall1 += any(is_in(s, source) for s in doc.retrieved_sources[:1])
+        recall3 += any(is_in(s, source) for s in doc.retrieved_sources[:3])
+        recall5 += any(is_in(s, source) for s in doc.retrieved_sources[:5])
+        recall10 += any(is_in(s, source) for s in doc.retrieved_sources[:10])
 
-    recall1 = recall1/len(dataset)
-    recall3 = recall3/len(dataset)
-    recall5 = recall5/len(dataset)
-    recall10 = recall10/len(dataset)
+    recall1 = int(recall1/len(dataset))
+    recall3 = int(recall3/len(dataset))
+    recall5 = int(recall5/len(dataset))
+    recall10 = int(recall10/len(dataset))
 
     print(f"\nTotal number of questions with sources: {len(dataset)}")
     print(f"Total number of questions with student sources: {len(results)}\n")

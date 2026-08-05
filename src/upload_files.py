@@ -1,4 +1,7 @@
-"""Utilities for scanning a directory, chunking text and code files, and persisting them."""
+"""
+Utilities for scanning a directory, chunking text and code files,
+and persisting them.
+"""
 
 from pathlib import Path
 import sys
@@ -10,10 +13,14 @@ from tqdm import tqdm
 
 
 class UploadDir:
-    """Index files from a directory into chunked text and code document stores."""
+    """
+    Index files from a directory into chunked text and code document stores.
+    """
 
     def __init__(self, directory: str = "", chunk_size: int = 2000):
-        """Initialize the uploader, chunking splitters, and document containers."""
+        """
+        Initialize the uploader, chunking splitters, and document containers.
+        """
         self.directory: str = directory
         self.files_path: list[str] = []
         self.text_documents: dict = {}
@@ -50,16 +57,19 @@ class UploadDir:
             sys.exit(1)
         self._chunk_size = size
 
-    def get_text_documents(self) -> list[dict]:
+    def get_text_documents(self) -> dict:
         """Return the indexed text-document store."""
         return self.text_documents
 
-    def get_code_documents(self) -> list[dict]:
+    def get_code_documents(self) -> dict:
         """Return the indexed code-document store."""
         return self.code_documents
 
     def _chunk_file_and_save(self, path: str, text: str) -> None:
-        """Split a file into chunks and store the result in the appropriate document map."""
+        """
+        Split a file into chunks and store the result in
+        the appropriate document map.
+        """
         if path.endswith(".md"):
             docs = self.splitter_md.create_documents([text])
             documents = self.text_documents
@@ -128,7 +138,9 @@ class UploadDir:
                 self._chunk_file_and_save(path, file.read())
 
     def _save_documents(self) -> None:
-        """Persist the indexed text and code documents to disk as JSON files."""
+        """
+        Persist the indexed text and code documents to disk as JSON files.
+        """
         os.makedirs("data/processed", exist_ok=True)
         self.text_documents["k"] = self._chunk_size
         self.code_documents["k"] = self._chunk_size
@@ -138,7 +150,9 @@ class UploadDir:
             json.dump(self.code_documents, file, indent=4)
 
     def upload(self, use_file_chunk_size: bool = False) -> bool:
-        """Scan a directory, process changed files, and save any updated indexes."""
+        """
+        Scan a directory, process changed files, and save any updated indexes.
+        """
         if not Path(self.directory).exists():
             print(f"Error: directory '{self.directory}' dons't exist?")
             exit(1)

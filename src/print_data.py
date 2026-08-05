@@ -1,4 +1,5 @@
 from colorama import Fore, Style
+from typing import Any
 
 
 STOP_WORDS = {
@@ -56,7 +57,7 @@ STOP_WORDS = {
 }
 
 
-def print_data(query, chunks, searcher=None) -> None:
+def print_data(query: str, chunks: list[tuple], searcher: Any = None) -> None:
     """printing data with colors."""
     for d in chunks:
         print(f"{Fore.YELLOW}\n\nQuestion: {query}{Style.RESET_ALL}")

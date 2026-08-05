@@ -13,7 +13,7 @@ class Process:
     translation2_code = str.maketrans("", "", string.punctuation)
 
     @staticmethod
-    def preprocess_doc(text: str) -> list[str]:
+    def preprocess_doc(text: str) -> str:
         """Normalize and tokenize document text for lexical matching."""
         return (text.lower()
                 .translate(Process.translation1)

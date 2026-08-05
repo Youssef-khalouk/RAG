@@ -74,6 +74,8 @@ def search(
     retrieved_sources = []
     for d in documents:
         doc = _searcher.get_document(d[1], d[2])
+        if doc == {}:
+            continue
         retrieved_sources.append(
             MinimalSource(
                 file_path=doc["file_path"],
@@ -109,6 +111,8 @@ def answer(
     retrieved_sources = []
     for d in documents:
         doc = _searcher.get_document(d[1], d[2])
+        if doc == {}:
+            continue
         retrieved_sources.append(
             MinimalSource(
                 file_path=doc["file_path"],

@@ -1,5 +1,4 @@
 import uuid
-from typing import List
 from pydantic import BaseModel, Field
 
 
@@ -18,20 +17,20 @@ class UnansweredQuestion(BaseModel):
 
 class AnsweredQuestion(UnansweredQuestion):
     """A question with ground-truth sources and answer."""
-    sources: List[MinimalSource]
+    sources: list[MinimalSource]
     answer: str
 
 
 class RagDataset(BaseModel):
     """A dataset of RAG questions (answered or not)."""
-    rag_questions: List[AnsweredQuestion | UnansweredQuestion]
+    rag_questions: list[AnsweredQuestion | UnansweredQuestion]
 
 
 class MinimalSearchResults(BaseModel):
     """Search results for one question."""
     question_id: str
     question: str
-    retrieved_sources: List[MinimalSource]
+    retrieved_sources: list[MinimalSource]
 
 
 class MinimalAnswer(MinimalSearchResults):
@@ -41,13 +40,13 @@ class MinimalAnswer(MinimalSearchResults):
 
 class StudentSearchResults(BaseModel):
     """Output of the search_dataset command."""
-    search_results: List[MinimalSearchResults]
+    search_results: list[MinimalSearchResults]
     k: int
 
 
 class StudentSearchResultsAndAnswer(BaseModel):
     """Output of the answer_dataset command."""
-    search_results: List[MinimalAnswer]
+    search_results: list[MinimalAnswer]
     k: int
 
 

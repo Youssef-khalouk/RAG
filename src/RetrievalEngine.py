@@ -1,4 +1,7 @@
-"""Retrieval utilities for indexing, caching, and querying document and code chunks."""
+"""
+Retrieval utilities for indexing, caching,
+and querying document and code chunks.
+"""
 
 from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
@@ -17,15 +20,19 @@ import numpy as np
 
 
 class RetrievalEngine:
-    """Build and query BM25 and embedding-based retrieval indexes for documents."""
+    """
+    Build and query BM25 and embedding-based retrieval indexes for documents.
+    """
 
-    def __init__(self):
-        """Initialize retrieval state, caches, and the sentence-transformer model."""
-        self.text_documents: dict = None
-        self.code_documents: dict = None
-        self.doc_chunks: list[str] = []
-        self.code_chunks: list[str] = []
-        self.both_chunks: list[str] = []
+    def __init__(self) -> None:
+        """
+        Initialize retrieval state, caches, and the sentence-transformer model.
+        """
+        self.text_documents: dict = {}
+        self.code_documents: dict = {}
+        self.doc_chunks: list[tuple] = []
+        self.code_chunks: list[tuple] = []
+        self.both_chunks: list[tuple] = []
         self.bm25_text: Any = None
         self.bm25_code: Any = None
         self.bm25_both: Any = None
@@ -35,8 +42,11 @@ class RetrievalEngine:
         self.code_embeddings: Any = None
         self.both_embeddings: Any = None
 
-    def _save_bm25_cache(self) -> None:
-        """Persist BM25 indexes and embeddings to the processed-data cache directory."""
+    def _save_retrieval_cache(self) -> None:
+        """
+        Persist BM25 indexes and embeddings to the
+        processed-data cache directory.
+        """
         pkls = {
             "data/processed/bm25_text_cache.pkl":
             {
@@ -76,8 +86,11 @@ class RetrievalEngine:
             sys.exit(1)
         self.top_k = size
 
-    def get_document_content(self, path: str, chunk: int) -> list[dict]:
-        """Return the content and metadata for a specific chunk from a document or code file."""
+    def get_document(self, path: str, chunk: int) -> dict:
+        """
+        Return metadata for a specific chunk
+        without including its text content.
+        """
         if self.text_documents is None or self.code_documents is None:
             print("there is no documents!")
             exit(1)
@@ -91,42 +104,16 @@ class RetrievalEngine:
         d["file_path"] = path.replace("\\", "/")
         d["first_character_index"] = chunk_doc["start_index"]
         d["last_character_index"] = chunk_doc["end_index"]
-        d["text"] = chunk_doc["text"]
         return d
-
-    def get_document(self, path: str, chunk: int) -> dict | None:
-        """Return metadata for a specific chunk without including its text content."""
-        if self.text_documents is None or self.code_documents is None:
-            print("there is no documents!")
-            exit(1)
-        doc = self.text_documents.get(path, None)
-        if doc is None:
-            doc = self.code_documents.get(path, None)
-        if doc is None:
-            return None
-        chunk_doc = doc["chunks"][chunk]
-        d = {}
-        d["file_path"] = path.replace("\\", "/")
-        d["first_character_index"] = chunk_doc["start_index"]
-        d["last_character_index"] = chunk_doc["end_index"]
-        return d
-
-    def check_documents(self,
-                        documents_text: list[dict],
-                        documents_code: list[dict],
-                        is_files_changed: bool) -> None:
-        """Ensure retrieval indexes exist, rebuilding them when needed."""
-        # this function used when i need to check the cached file is exist
-        # if not rebuild cache
-        if not is_files_changed and self._is_cached_files_exist():
-            return
-        self.set_documents(documents_text, documents_code, is_files_changed)
 
     def create_bm25_cache_and_save(self,
-                                   documents_text: list[dict],
-                                   documents_code: list[dict],
+                                   documents_text: dict,
+                                   documents_code: dict,
                                    is_files_changed: bool) -> None:
-        """Build BM25 indexes and embeddings from documents and persist them to disk."""
+        """
+        Build BM25 indexes and embeddings from documents
+        and persist them to disk.
+        """
         if not is_files_changed and self._is_cached_files_exist():
             return
 
@@ -188,7 +175,7 @@ class RetrievalEngine:
             )
         self.both_embeddings = np.concatenate([self.doc_embeddings,
                                                self.code_embeddings])
-        self._save_bm25_cache()
+        self._save_retrieval_cache()
 
     def _is_cached_files_exist(self) -> bool:
         """Return whether the required cache files are present on disk."""
@@ -202,35 +189,25 @@ class RetrievalEngine:
 
     def _remove_cache_files(self) -> None:
         """Remove retrieval cache files from disk."""
-        try:
-            Path("data/processed/doc_documents.json").unlink()
-        except Exception:
-            pass
-        try:
-            Path("data/processed/code_documents.json").unlink()
-        except Exception:
-            pass
-        try:
-            Path("data/processed/bm25_text_cache.pkl").unlink()
-        except Exception:
-            pass
-        try:
-            Path("data/processed/bm25_code_cache.pkl").unlink()
-        except Exception:
-            pass
-        try:
-            Path("data/processed/bm25_both_cache.pkl").unlink()
-        except Exception:
-            pass
-        try:
-            Path("data/processed/doc_embeddings_cache.pkl").unlink()
-        except Exception:
-            pass
+        paths = [
+            "data/processed/doc_documents.json",
+            "data/processed/code_documents.json",
+            "data/processed/bm25_text_cache.pkl",
+            "data/processed/bm25_code_cache.pkl",
+            "data/processed/bm25_both_cache.pkl",
+            "data/processed/doc_embeddings_cache.pkl",
+
+        ]
+        for path in paths:
+            try:
+                Path(path).unlink()
+            except Exception:
+                pass
 
     def load_cache(self) -> None:
         """Load BM25 indexes, embeddings, and document metadata from cache."""
         if not self._is_cached_files_exist():
-            print("bm25 cache dosn't exists!"
+            print("bm25 cache doesn't exists!"
                   "\nrun 'make index' to create cache.")
             exit(1)
 
@@ -241,14 +218,14 @@ class RetrievalEngine:
             self._remove_cache_files()
             exit(1)
 
-        with open("data/processed/doc_documents.json", "r") as file:
+        with open("data/processed/doc_documents.json", "r") as f:
             try:
-                self.text_documents = json.load(file)
+                self.text_documents = json.load(f)
             except Exception:
                 _cache_curapted()
-        with open("data/processed/code_documents.json", "r") as file:
+        with open("data/processed/code_documents.json", "r") as f:
             try:
-                self.code_documents = json.load(file)
+                self.code_documents = json.load(f)
             except Exception:
                 _cache_curapted()
 
@@ -290,7 +267,7 @@ class RetrievalEngine:
 
     @lru_cache
     def query_embeddings(self, query: str, type_flag: str = "",
-                         top_k: int = None) -> list[dict]:
+                         top_k: int | None = None) -> list[tuple]:
         """Return the top matching chunks using semantic embeddings."""
         if self.doc_embeddings is None or self.code_embeddings is None:
             print("embeddings cache did not load yet, "
@@ -323,7 +300,7 @@ class RetrievalEngine:
 
     @lru_cache
     def query_bm25(self, query: str, type_flag: str = "",
-                   top_k: int = None) -> list[dict]:
+                   top_k: int | None = None) -> list[tuple]:
         """Return the top matching chunks using BM25 lexical ranking."""
         if not self.bm25_text or not self.bm25_code or not self.bm25_both:
             print("the cache did not upload yet,"
@@ -335,16 +312,16 @@ class RetrievalEngine:
         if type_flag == "doc":
             scores = self.bm25_text.get_scores(
                 Process.preprocess_doc(query).split())
-            documents = self.doc_chunks
+            chunks = self.doc_chunks
         elif type_flag == "code":
             scores = self.bm25_code.get_scores(
                 Process.preprocess_code(query).split())
-            documents = self.code_chunks
+            chunks = self.code_chunks
         else:
-            # get scores from both documents
+            # get scores from both chunks
             scores = self.bm25_both.get_scores(
                 Process.preprocess_doc(query).split())
-            documents = self.both_chunks
+            chunks = self.both_chunks
 
         top_indexes = sorted(
             range(len(scores)),
@@ -353,24 +330,28 @@ class RetrievalEngine:
 
         query_results = []
         for index in top_indexes:
-            query_results.append(documents[index])
+            query_results.append(chunks[index])
         return query_results
 
     @lru_cache
     def query(self, query: str, type_flag: str = "",
-              top_k: int = None) -> list[dict]:
-        """Combine BM25 and embedding results into a deduplicated ranked list."""
+              top_k: int | None = None) -> list[tuple]:
+        """
+        Combine BM25 and embedding results into a deduplicated ranked list.
+        """
         if top_k is not None:
             self.set_top_k(top_k)
 
         half = max(1, self.top_k // 2)
-        bm25_results = self.query_bm25(query, type_flag, top_k)
-        embedding_results = self.query_embeddings(query, type_flag, top_k)
+        bm25_results: list[tuple] = self.query_bm25(query, type_flag, top_k)
+        embedding_results: list[tuple] = self.query_embeddings(query,
+                                                               type_flag,
+                                                               top_k)
 
         seen = set()
         combined = []
 
-        def add_unique(chunks, limit):
+        def add_unique(chunks: list[tuple], limit: int) -> None:
             added = 0
             for chunk in chunks:
                 key = (chunk[1], chunk[2])
