@@ -2,6 +2,9 @@
 /datasets_public
 /vllm-0.10.1
 /data
+/exams
+/evaluations
+
 
 **/__pycache__/
 *.pyc
