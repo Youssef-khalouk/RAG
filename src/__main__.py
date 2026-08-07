@@ -9,7 +9,7 @@ from .validaters import (RagDataset,
                          StudentSearchResults,
                          MinimalAnswer,
                          StudentSearchResultsAndAnswer,
-                         UnansweredQuestion)
+                         AnsweredQuestion)
 from tqdm import tqdm
 
 
@@ -25,6 +25,9 @@ def verify_max_chunk_size(max_chunk_size: int) -> None:
 
 def verify_k(k: int) -> None:
     """verify top k for sifty."""
+    if not isinstance(k, int):
+        print(f"k = `{k}` should be an integer.")
+        exit(1)
     if k <= 0:
         print("Error: k must be greater than 0.")
         exit(1)
@@ -35,8 +38,21 @@ def verify_k(k: int) -> None:
 
 def verify_query(query: str) -> None:
     """verify the query if its empty."""
+    if not isinstance(query, str):
+        print("Error: query should be a string.")
+        exit(1)
     if query.strip() == "":
         print("Error: query should not be empty.")
+        exit(1)
+
+
+def verify_file(file_path: str) -> None:
+    path: Path = Path(file_path)
+    if not path.exists():
+        print(f"Error: file '{path}' not found.")
+        exit(1)
+    if not path.is_file():
+        print(f"Error: file '{path}' is not a file.")
         exit(1)
 
 
@@ -88,9 +104,7 @@ def search_dataset(dataset_path: str,
                    save_directory: str = "data/output/output.json") -> None:
     """Run retrieval over a dataset of questions and save the results."""
     verify_k(k)
-    if not Path(dataset_path).exists():
-        print(f"Error: dataset_path '{dataset_path}' doesn't exist.")
-        exit(1)
+    verify_file(dataset_path)
     with open(dataset_path, "r", encoding="utf-8") as file:
         try:
             dictionary = RagDataset.model_validate_json(file.read())
@@ -102,6 +116,7 @@ def search_dataset(dataset_path: str,
     searcher = RetrievalEngine()
     searcher.set_top_k(k)
     searcher.load_cache()
+    searcher._init_model()
 
     path = Path(dataset_path)
     type = "both"
@@ -111,7 +126,8 @@ def search_dataset(dataset_path: str,
         type = "doc"
 
     search_results: list[MinimalSearchResults] = []
-    for q in dictionary.rag_questions:
+    for q in tqdm(dictionary.rag_questions,
+                  desc="Processed Questions", unit="Question"):
         documents = searcher.query(q.question, type)
         retrieved_sources: list[MinimalSource] = []
         for d in documents:
@@ -155,20 +171,17 @@ def answer(query: str, k: int = 10) -> None:
     chunks = searcher.query(query)
     context = LLM.get_context(chunks)
     the_answer = LLM.ask(question=query, context=context)
-    print(f"Question: {query}\nAnswer: {the_answer}")
+    print(f"Answer: {the_answer}")
 
 
 def answer_dataset(student_search_results_path: str,
-                   save_directory: str) -> None:
+                   save_directory: str = "data") -> None:
     """
     Generate answers for a batch of saved search results and write them out.
     """
     from .LLM import LLM
 
-    path = Path(student_search_results_path)
-    if not path.exists() or path.is_dir():
-        print(f"Error: file '{student_search_results_path}' not found.")
-        exit(1)
+    verify_file(student_search_results_path)
     with open(student_search_results_path, "r", encoding="utf-8") as file:
         try:
             search_results = StudentSearchResults.model_validate_json(
@@ -235,13 +248,8 @@ def evaluate(student_search_results_path: str, dataset_path: str) -> None:
     Evaluate retrieved sources against the reference dataset
     and print recall metrics.
     """
-
-    if not Path(student_search_results_path).exists():
-        print(f"Error: file '{student_search_results_path}' not found.")
-        exit(1)
-    if not Path(dataset_path).exists():
-        print(f"Error: dataset_path '{dataset_path}' doesn't exist.")
-        exit(1)
+    verify_file(student_search_results_path)
+    verify_file(dataset_path)
 
     with open(student_search_results_path, "r", encoding="utf-8") as file:
         try:
@@ -256,7 +264,6 @@ def evaluate(student_search_results_path: str, dataset_path: str) -> None:
         except Exception as e:
             print(f"Error: {e}")
             exit(1)
-            return
 
     def is_in(source: MinimalSource, dataset_source: MinimalSource) -> int:
         """
@@ -281,14 +288,17 @@ def evaluate(student_search_results_path: str, dataset_path: str) -> None:
 
     results = search_results.search_results
     dataset = dictionary.rag_questions
-    recall1 = recall3 = recall5 = recall10 = 0
+    recall1 = recall3 = recall5 = recall10 = 0.0
 
     for doc in results:
         item = next(
             (x for x in dataset if x.question_id == doc.question_id), None)
-        if item is None or isinstance(item, UnansweredQuestion):
+        if item is None:
             print(f"the question '{doc.question_id}' "
                   "did not found in dataset.")
+            exit(1)
+        if not isinstance(item, AnsweredQuestion):
+            print("item is not instance or AnswerdQuestion.")
             exit(1)
         if item.sources == []:
             print("there is no expected chunk in dataset,"
@@ -300,10 +310,10 @@ def evaluate(student_search_results_path: str, dataset_path: str) -> None:
         recall5 += any(is_in(s, source) for s in doc.retrieved_sources[:5])
         recall10 += any(is_in(s, source) for s in doc.retrieved_sources[:10])
 
-    recall1 = int(recall1/len(dataset))
-    recall3 = int(recall3/len(dataset))
-    recall5 = int(recall5/len(dataset))
-    recall10 = int(recall10/len(dataset))
+    recall1 = recall1/len(dataset)
+    recall3 = recall3/len(dataset)
+    recall5 = recall5/len(dataset)
+    recall10 = recall10/len(dataset)
 
     print(f"\nTotal number of questions with sources: {len(dataset)}")
     print(f"Total number of questions with student sources: {len(results)}\n")

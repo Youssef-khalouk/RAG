@@ -16,6 +16,10 @@ MAX_CHUNK_SIZE      ?= 2000
 M_PARAMETERS         = --k $(K) --max_context_length $(MAX_CHUNK_SIZE)
 QUERY               ?= What HTTP endpoint is used to dynamically load a LoRA adapter in vLLM?
 
+EXAM_SCRIPTS         = ./exams/scripts
+MOULINETTE_EXAM      = ./data/moulinette/moulinette-ubuntu
+MODULE_NAME         ?= src
+
 ifeq ($(OS),Windows_NT)
     # Windows
 	export HF_HOME=C:/rag_env/hf_home
@@ -88,26 +92,34 @@ answer_dataset_private_code:
 		--save_directory $(ANSWER_OUTPUT_DIR)
 
 evaluate_public_doc:
-	uv run python -m src evaluate $(SEARCH_OUTPUT_DIR) $(PUBLIC_ANSWERD_DOC)
+	uv run python -m src evaluate $(SEARCH_OUTPUT_DIR)/dataset_docs_public.json $(PUBLIC_ANSWERD_DOC)
 evaluate_public_code:
-	uv run python -m src evaluate $(SEARCH_OUTPUT_DIR) $(PUBLIC_ANSWERD_CODE)
+	uv run python -m src evaluate $(SEARCH_OUTPUT_DIR)/dataset_code_public.json $(PUBLIC_ANSWERD_CODE)
 evaluate_private_doc:
-	uv run python -m src evaluate $(SEARCH_OUTPUT_DIR) $(PRIVATE_ANSWERD_DOC)
+	uv run python -m src evaluate $(SEARCH_OUTPUT_DIR)/dataset_docs_private.json $(PRIVATE_ANSWERD_DOC)
 evaluate_private_code:
-	uv run python -m src evaluate $(SEARCH_OUTPUT_DIR) $(PRIVATE_ANSWERD_CODE)
+	uv run python -m src evaluate $(SEARCH_OUTPUT_DIR)/dataset_code_private.json $(PRIVATE_ANSWERD_CODE)
 
 
 moulinette_public_doc:
-	$(MOULINETTE) $(SEARCH_OUTPUT_DIR) $(PUBLIC_ANSWERD_DOC) $(M_PARAMETERS)
+	$(MOULINETTE) $(SEARCH_OUTPUT_DIR)/dataset_docs_public.json $(PUBLIC_ANSWERD_DOC) $(M_PARAMETERS)
 moulinette_public_code:
-	$(MOULINETTE) $(SEARCH_OUTPUT_DIR) $(PUBLIC_ANSWERD_CODE) $(M_PARAMETERS)
+	$(MOULINETTE) $(SEARCH_OUTPUT_DIR)/dataset_code_public.json $(PUBLIC_ANSWERD_CODE) $(M_PARAMETERS)
 moulinette_private_doc:
-	$(MOULINETTE) $(SEARCH_OUTPUT_DIR) $(PRIVATE_ANSWERD_DOC) $(M_PARAMETERS)
+	$(MOULINETTE) $(SEARCH_OUTPUT_DIR)/dataset_docs_private.json $(PRIVATE_ANSWERD_DOC) $(M_PARAMETERS)
 moulinette_private_code:
-	$(MOULINETTE) $(SEARCH_OUTPUT_DIR) $(PRIVATE_ANSWERD_CODE) $(M_PARAMETERS)
+	$(MOULINETTE) $(SEARCH_OUTPUT_DIR)/dataset_code_private.json $(PRIVATE_ANSWERD_CODE) $(M_PARAMETERS)
 
 server:
 	uv run uvicorn src.api:app --host 127.0.0.1 --port 8000
+
+exam_retrieval:
+	cd data;
+	$(EXAM_SCRIPTS)/exam_retrieval.sh --student-path . --moulinette-path $(MOULINETTE_EXAM) --module-name $(MODULE_NAME)
+exam_answer:
+	$(EXAM_SCRIPTS)/exam_answer.sh --student-path . --moulinette-path $(MOULINETTE_EXAM) --module-name $(MODULE_NAME)
+exam_edge_cases:
+	$(EXAM_SCRIPTS)/exam_edge_cases.sh --student-path . --module-name $(MODULE_NAME)
 
 download:
 	mkdir -p data
@@ -116,25 +128,32 @@ download:
 	curl -L -o vllm-0.10.1.zip https://cdn.intra.42.fr/document/document/55369/vllm-0.10.1.zip
 	curl -L -o moulinette.zip https://cdn.intra.42.fr/document/document/55370/moulinette.zip
 
+	curl -L -o exams.zip https://cdn.intra.42.fr/document/document/54698/exams.zip
+
+
 	if [ "$(OS)" = "Windows_NT" ]; then \
 		powershell -Command "Expand-Archive -Path datasets_private.zip -DestinationPath data/datasets_private -Force"; \
 		powershell -Command "Expand-Archive -Path datasets_public.zip -DestinationPath data -Force"; \
 		powershell -Command "Expand-Archive -Path vllm-0.10.1.zip -DestinationPath data/raw -Force"; \
 		powershell -Command "Expand-Archive -Path moulinette.zip -DestinationPath data/moulinette -Force"; \
+		powershell -Command "Expand-Archive -Path exams.zip -DestinationPath . -Force"; \
 	else \
 		unzip -o datasets_private.zip -d data/datasets_private; \
+		unzip -o datasets_private.zip -d data/datasets; \
 		unzip -o datasets_public.zip -d data; \
 		unzip -o vllm-0.10.1.zip -d data/raw; \
 		unzip -o moulinette.zip -d data/moulinette; \
+		unzip -o exams.zip -d .; \
 	fi
 
 	rm -rf datasets_private.zip
 	rm -rf datasets_public.zip
 	rm -rf vllm-0.10.1.zip
 	rm -rf moulinette.zip
+	rm -rf exams.zip
 
 debug:
-	uv run python -m pdb src
+	uv run python -m pdb -m src
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +
@@ -146,6 +165,11 @@ clean_cache:
 	rm -rf data/processed
 	rm -rf $(SEARCH_OUTPUT_DIR)
 	rm -rf $(ANSWER_OUTPUT_DIR)
+
+clean_all: clean
+	rm -rf data
+	rm -rf exams
+	rm -rf evaluations
 
 lint:
 	flake8 src
@@ -159,36 +183,52 @@ help:
 	@echo "Usage: make <target>"
 	@echo
 	@echo "Setup:"
-	@echo "  install                      Install project dependencies"
-	@echo "  download                     Download datasets, vLLM, and moulinette"
+	@echo "  install                       Install project dependencies"
+	@echo "  download                      Download datasets, vLLM, moulinette, and exams"
 	@echo
 	@echo "Indexing:"
-	@echo "  index                        Build the index from data/raw/"
+	@echo "  index                         Build the index from data/raw/"
 	@echo
 	@echo "Search:"
-	@echo "  search                       Run a single query search"
+	@echo "  search                        Run a single query search"
 	@echo "  search_content                Run a single content search"
-	@echo "  search_dataset_public_doc    Search over the public docs dataset"
-	@echo "  search_dataset_public_code   Search over the public code dataset"
-	@echo "  search_dataset_private_doc   Search over the private docs dataset"
-	@echo "  search_dataset_private_code  Search over the private code dataset"
+	@echo "  search_dataset_public_doc     Search over the public docs dataset"
+	@echo "  search_dataset_public_code    Search over the public code dataset"
+	@echo "  search_dataset_private_doc    Search over the private docs dataset"
+	@echo "  search_dataset_private_code   Search over the private code dataset"
 	@echo
 	@echo "Answer generation:"
-	@echo "  answer                       Answer a single query"
-	@echo "  answer_dataset               Generate answers from the last search_dataset output"
+	@echo "  answer                        Answer a single query"
+	@echo "  answer_dataset_public_doc     Generate answers for the public docs search results"
+	@echo "  answer_dataset_public_code    Generate answers for the public code search results"
+	@echo "  answer_dataset_private_doc    Generate answers for the private docs search results"
+	@echo "  answer_dataset_private_code   Generate answers for the private code search results"
+	@echo
+	@echo "Evaluation:"
+	@echo "  evaluate_public_doc           Compute recall for the public docs dataset"
+	@echo "  evaluate_public_code          Compute recall for the public code dataset"
+	@echo "  evaluate_private_doc          Compute recall for the private docs dataset"
+	@echo "  evaluate_private_code         Compute recall for the private code dataset"
 	@echo
 	@echo "Evaluation (moulinette):"
-	@echo "  moulinette_public_doc        Evaluate public documentation results"
-	@echo "  moulinette_public_code       Evaluate public code results"
-	@echo "  moulinette_private_doc       Evaluate private documentation results"
-	@echo "  moulinette_private_code      Evaluate private code results"
+	@echo "  moulinette_public_doc         Evaluate public documentation results"
+	@echo "  moulinette_public_code        Evaluate public code results"
+	@echo "  moulinette_private_doc        Evaluate private documentation results"
+	@echo "  moulinette_private_code       Evaluate private code results"
+	@echo
+	@echo "Exams:"
+	@echo "  exam_retrieval                Run the retrieval exam script"
+	@echo "  exam_answer                   Run the answer-generation exam script"
+	@echo "  exam_edge_cases                Run the edge-cases exam script"
 	@echo
 	@echo "Development:"
-	@echo "  run                          Run the application"
-	@echo "  debug                        Run application with pdb"
-	@echo "  lint                         Run flake8 and mypy checks"
-	@echo "  clean                        Remove caches (__pycache__, .mypy_cache, etc.)"
-	@echo "  clean_cache                  Remove generated index and output files"
+	@echo "  run                           Run the application"
+	@echo "  server                        Start the FastAPI server (uvicorn)"
+	@echo "  debug                         Run application with pdb"
+	@echo "  lint                          Run flake8 and mypy checks"
+	@echo "  clean                         Remove caches (__pycache__, .mypy_cache, etc.)"
+	@echo "  clean_cache                   Remove generated index and output files"
+	@echo "  clean_all                     Remove clean targets plus data, exams, and evaluations"
 
 .PHONY: \
 	help \
@@ -196,6 +236,7 @@ help:
 	download \
 	index \
 	run \
+	server \
 	search \
 	search_content \
 	search_dataset_public_doc \
@@ -203,13 +244,23 @@ help:
 	search_dataset_private_doc \
 	search_dataset_private_code \
 	answer \
-	answer_dataset \
-	moulinette \
+	answer_dataset_public_doc \
+	answer_dataset_public_code \
+	answer_dataset_private_doc \
+	answer_dataset_private_code \
+	evaluate_public_doc \
+	evaluate_public_code \
+	evaluate_private_doc \
+	evaluate_private_code \
 	moulinette_public_doc \
 	moulinette_public_code \
 	moulinette_private_doc \
 	moulinette_private_code \
+	exam_retrieval \
+	exam_answer \
+	exam_edge_cases \
 	debug \
 	clean \
 	clean_cache \
+	clean_all \
 	lint

@@ -1,4 +1,4 @@
-*This project has been created as part of the 42 curriculum by ykhalouk.
+*This project has been created as part of the 42 curriculum by ykhalouk.*
 
 # RAG Against the Machine — A Retrieval-Augmented Generation (RAG) System
 
@@ -43,14 +43,16 @@ This runs `uv sync` and prints the command to activate the resulting virtual
 environment (`source /tmp/uv_venv/bin/activate`, path varies by OS — see the
 Makefile's `HF_HOME` / `UV_*` variables).
 
-Then download the datasets and the raw vLLM 0.10.1 corpus:
+Then download the datasets, the raw vLLM 0.10.1 corpus, moulinette, and the exam
+scripts:
 
 ```bash
 make download
 ```
 
-This pulls `datasets_private.zip`, `datasets_public.zip`, `vllm-0.10.1.zip`, and
-`moulinette.zip` from the 42 intranet CDN and extracts them into `data/`.
+This pulls `datasets_private.zip`, `datasets_public.zip`, `vllm-0.10.1.zip`,
+`moulinette.zip`, and `exams.zip` from the 42 intranet CDN and extracts them into
+`data/` (and `exams/` for the exam scripts).
 
 ### Building the index
 
@@ -109,6 +111,27 @@ Runs the project's official evaluation binary
 (`data/moulinette/moulinette-ubuntu evaluate_student_search_results`) against the
 search results, using the same `K` / `MAX_CHUNK_SIZE` Makefile variables.
 
+### Exams
+
+```bash
+make exam_retrieval        # runs exams/scripts/exam_retrieval.sh against moulinette
+make exam_answer           # runs exams/scripts/exam_answer.sh against moulinette
+make exam_edge_cases       # runs exams/scripts/exam_edge_cases.sh (no moulinette needed)
+```
+
+These wrap the official exam scripts under `exams/scripts/` (unpacked by
+`make download`). They exercise the project end-to-end the same way it would be
+graded:
+
+- `exam_retrieval` builds/uses the index and validates the retrieval pipeline
+  against `moulinette-ubuntu`.
+- `exam_answer` validates the answer-generation pipeline against `moulinette-ubuntu`.
+- `exam_edge_cases` runs edge-case checks (empty queries, invalid `k`, malformed
+  files, etc.) directly against the `src` module, without needing moulinette.
+
+All three accept `MODULE_NAME` to point at a different module (defaults to `src`),
+e.g. `make exam_retrieval MODULE_NAME=src`.
+
 ### Running directly with `python -m`
 
 Every `make` target above is a thin wrapper around the underlying CLI, which can
@@ -121,7 +144,7 @@ uv run python -m src search_content --k 5 --query "What is PagedAttention?"
 uv run python -m src answer --query "What scheduling policy does vLLM use?" --k 10
 uv run python -m src search_dataset --dataset_path=<path> --k 10 --save_directory <dir>
 uv run python -m src answer_dataset --student_search_results_path <path> --save_directory <dir>
-uv run python -m src evaluate <search_results_dir> <answered_dataset_path>
+uv run python -m src evaluate <search_results_path> <answered_dataset_path>
 ```
 
 ### Makefile command reference
@@ -129,7 +152,7 @@ uv run python -m src evaluate <search_results_dir> <answered_dataset_path>
 | Target | Description |
 |---|---|
 | `make install` | Install project dependencies via `uv sync` |
-| `make download` | Download datasets, the vLLM 0.10.1 corpus, and moulinette from the 42 CDN |
+| `make download` | Download datasets, the vLLM 0.10.1 corpus, moulinette, and the exam scripts from the 42 CDN |
 | `make index` | Build the retrieval index from `data/raw/` (`MAX_CHUNK_SIZE` variable) |
 | `make search` | Run a single query search and print matching source locations (`QUERY`, `K` variables) |
 | `make search_content` | Run a single query search and print the retrieved chunk content |
@@ -138,12 +161,16 @@ uv run python -m src evaluate <search_results_dir> <answered_dataset_path>
 | `make answer_dataset_public_doc` / `_public_code` / `_private_doc` / `_private_code` | Generate answers for the corresponding saved search-results file |
 | `make evaluate_public_doc` / `_public_code` / `_private_doc` / `_private_code` | Compute Recall@1/3/5/10 against the corresponding ground-truth dataset |
 | `make moulinette_public_doc` / `_public_code` / `_private_doc` / `_private_code` | Run the official 42 moulinette evaluation binary |
+| `make exam_retrieval` | Run the retrieval exam script against moulinette |
+| `make exam_answer` | Run the answer-generation exam script against moulinette |
+| `make exam_edge_cases` | Run the edge-case exam script directly against `src` |
 | `make run` | Run the application (`uv run python -m src`) |
 | `make server` | Start the FastAPI server (`uvicorn src.api:app`) on `127.0.0.1:8000` |
 | `make debug` | Run the application under `pdb` |
 | `make lint` | Run `flake8` and `mypy` checks on `src` |
 | `make clean` | Remove `__pycache__`, `.mypy_cache`, `.pytest_cache`, and `.pyc` files |
 | `make clean_cache` | Remove generated index (`data/processed`) and output directories |
+| `make clean_all` | Run `clean` and also remove `data/`, `exams/`, and `evaluations/` |
 | `make help` | Print a summary of all available targets |
 
 ## System Architecture
@@ -189,6 +216,12 @@ CLI (`__main__.py`):
   `search_dataset`, `answer`, `answer_dataset`, and `evaluate` commands via
   [`fire`](https://github.com/google/python-fire), each validating its inputs
   (`k`, `max_chunk_size`, non-empty queries) before delegating to the modules above.
+
+- **Exams (`exams/scripts/`)** wrap the whole pipeline end-to-end for grading:
+  `exam_retrieval.sh` and `exam_answer.sh` drive `src` through `moulinette-ubuntu`
+  to validate retrieval and answer generation respectively, while
+  `exam_edge_cases.sh` calls `src` directly to check error handling on malformed
+  input, empty queries, and out-of-range parameters.
 
 Validation and I/O contracts between stages (dataset format, search-results format,
 answer format) are enforced with `pydantic` models (`RagDataset`, `MinimalSource`,
@@ -273,7 +306,7 @@ useful to the downstream LLM.
 
 *(Replace the placeholders above with the actual scores obtained by running
 `make evaluate_public_doc` (or the matching `_public_code` / `_private_doc` /
-`_private_code` target, or `uv run python -m src evaluate <search_results_dir>
+`_private_code` target, or `uv run python -m src evaluate <search_results_path>
 <dataset_path>` directly) on your evaluation set, and add any discussion of how
 chunk size, `k`, or the BM25/embedding mix affected these numbers.)*
 
@@ -329,11 +362,17 @@ Observed trends worth noting in this kind of hybrid setup:
 - **Running a local LLM efficiently**: without a GPU, generation is slow, so
   answers are cached by `(question, context)` to avoid ever re-generating the same
   answer twice.
+- **Passing directories instead of files to `evaluate`**: an early version of the
+  Makefile's `evaluate_*` targets pointed at the output *directory* rather than the
+  specific dataset file inside it, causing `evaluate()` to try to `open()` a
+  directory and crash. Fixed by matching the `answer_dataset_*` pattern and pointing
+  each `evaluate_*` target at its exact file (e.g.
+  `$(SEARCH_OUTPUT_DIR)/dataset_docs_public.json`).
 
 ## Example Usage
 
 ```bash
-# 0. Install dependencies and download the vLLM corpus + datasets
+# 0. Install dependencies and download the vLLM corpus + datasets + exams
 make install
 make download
 
@@ -350,6 +389,11 @@ make answer QUERY="What is continuous batching in vLLM?"
 make search_dataset_public_doc
 make answer_dataset_public_doc
 make evaluate_public_doc
+
+# 5. Run the exam scripts (same checks used for grading)
+make exam_retrieval
+make exam_answer
+make exam_edge_cases
 
 # Equivalent, called directly without make:
 uv run python -m src index

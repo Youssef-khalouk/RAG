@@ -145,9 +145,17 @@ class UploadDir:
         self.text_documents["k"] = self._chunk_size
         self.code_documents["k"] = self._chunk_size
         with open("data/processed/doc_documents.json", "w") as file:
-            json.dump(self.text_documents, file, indent=4)
+            try:
+                json.dump(self.text_documents, file, indent=4)
+            except Exception as e:
+                print("couldn't save file 'data/processed/doc_documents.json'"
+                      f"\nError: {e}")
         with open("data/processed/code_documents.json", "w") as file:
-            json.dump(self.code_documents, file, indent=4)
+            try:
+                json.dump(self.code_documents, file, indent=4)
+            except Exception as e:
+                print("couldn't save file 'data/processed/doc_documents.json'"
+                      f"\nError: {e}")
 
     def upload(self, use_file_chunk_size: bool = False) -> bool:
         """

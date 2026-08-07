@@ -37,10 +37,14 @@ class RetrievalEngine:
         self.bm25_code: Any = None
         self.bm25_both: Any = None
         self.top_k: int = 10
-        self.model: Any = SentenceTransformer("paraphrase-MiniLM-L3-v2")
+        self.model: SentenceTransformer | None = None
         self.doc_embeddings: Any = None
         self.code_embeddings: Any = None
         self.both_embeddings: Any = None
+
+    def _init_model(self) -> None:
+        if not self.model:
+            self.model = SentenceTransformer("paraphrase-MiniLM-L3-v2")
 
     def _save_retrieval_cache(self) -> None:
         """
@@ -77,7 +81,11 @@ class RetrievalEngine:
                                   desc="Cacheing BM25",
                                   unit="file"):
             with open(path, "wb") as file:
-                pickle.dump(content, file)
+                try:
+                    pickle.dump(content, file)
+                except Exception as e:
+                    print(f"count not save file '{path}'.\n Error: {e}")
+                    exit(1)
 
     def set_top_k(self, size: int) -> None:
         """Set the number of top results returned by query methods."""
@@ -116,6 +124,8 @@ class RetrievalEngine:
         """
         if not is_files_changed and self._is_cached_files_exist():
             return
+        self._init_model()
+        assert self.model is not None
 
         self.text_documents = documents_text
         self.code_documents = documents_code
@@ -286,10 +296,11 @@ class RetrievalEngine:
             vectors = self.both_embeddings
             chunks = self.both_chunks
 
+        self._init_model()
+        assert self.model is not None
+
         with torch.inference_mode():
-            query_vector = self.model.encode(
-                [query], convert_to_numpy=True
-            )[0]
+            query_vector = self.model.encode([query], convert_to_numpy=True)[0]
 
         query_norm = query_vector / np.linalg.norm(query_vector)
         vectors_norm = vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
